@@ -6,7 +6,7 @@
 #include <Server_Side_RPC.h>
 #include <ThingsBoard.h>
 
-void coreIotSendData(String mode, String feed, String data);
+void coreIotSendData(String mode, String key, String data);
 
 void coreIotReconnect();
 

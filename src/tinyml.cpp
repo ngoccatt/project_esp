@@ -49,6 +49,9 @@ void setupTinyML()
 void tiny_ml_task(void *pvParameters)
 {
 
+    static float temperature_l = 0.0;
+    static float humidity_l = 0.0;
+
     setupTinyML();
 
     while (1)
@@ -56,8 +59,10 @@ void tiny_ml_task(void *pvParameters)
 
         // Prepare input data (e.g., sensor readings)
         // For a simple example, let's assume a single float input
-        input->data.f[0] = temperature;
-        input->data.f[1] = humidity;
+        xQueueReceive(xTemperatureQueue, &temperature_l, 5 / portTICK_PERIOD_MS);
+        xQueueReceive(xHumidityQueue, &humidity_l, 5 / portTICK_PERIOD_MS);
+        input->data.f[0] = temperature_l;
+        input->data.f[1] = humidity_l;
 
         // Run inference
         TfLiteStatus invoke_status = interpreter->Invoke();
@@ -73,6 +78,6 @@ void tiny_ml_task(void *pvParameters)
         // here, for any value above 0.5, we consider it as anomaly, otherwise normal. 
         Serial.println("Inference result: " + String(result) + " - " + String((result > 0.5) ? "Anomaly Detected" : "Normal"));
 
-        vTaskDelay(5000);
+        vTaskDelay(5000 / portTICK_PERIOD_MS);
     }
 }

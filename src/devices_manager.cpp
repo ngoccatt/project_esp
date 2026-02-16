@@ -1,5 +1,6 @@
 #include "devices_manager.hpp"
 #include "littleFS_manager.hpp"
+#include "global.hpp"
 
 JsonDocument devicesDoc;
 /*
@@ -9,6 +10,8 @@ format:
     {"deviceName2": {"gpio": GPIOpin, "status": false}},
 }
 */ 
+
+#define NUM_OF_RECEIVERS_DEVICE_CHANGED_QUEUE 2
 
 
 bool setupSimpleDevice(String deviceName, int GPIOpin)
@@ -43,6 +46,10 @@ void controlSimpleDevice(String deviceName, int GPIOpin, bool state)
 {
     digitalWrite(GPIOpin, state ? HIGH : LOW);
     devicesDoc[deviceName]["status"] = state;
+    bool deviceChanged = true;
+    for (int i = 0; i < NUM_OF_RECEIVERS_DEVICE_CHANGED_QUEUE; i++) {
+        xQueueSend(xDeviceChangedQueue, &deviceChanged,  5 / portTICK_PERIOD_MS);
+    }
 }
 
 bool removeSimpleDevice(String deviceName, int GPIOpin)

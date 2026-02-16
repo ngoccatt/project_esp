@@ -1,19 +1,29 @@
 #include "temp_humid_mon.hpp"
 #include "DHT20.h"
+#include "global.hpp"
 
 #define I2C_SDA 11
 #define I2C_SCL 12
 
+#define NUM_QUEUE_RECEIVER 4
+
 void taskMonitorTempHumid(void *pvParameters) {
+    xTemperatureQueue = xQueueCreate(10, sizeof(float));
+    xHumidityQueue = xQueueCreate(10, sizeof(float));
+    
     DHT20 dht20(&Wire);
     int i = 0;
     char msgBuf[256];
     Wire.begin(I2C_SDA, I2C_SCL);
     dht20.begin();
+
     bool checkConnection_l = false;
     bool connected_l = true;
+
     float temperature_l = 0.0;
     float humidity_l = 0.0;
+
+
     while (true) 
     {
         checkConnection_l = dht20.isConnected();
@@ -35,13 +45,17 @@ void taskMonitorTempHumid(void *pvParameters) {
             humidity_l = dht20.getHumidity();
 
             // Check if any reads failed then use dummy values
-            if (isnan(temperature) || isnan(humidity)) {
+            if (isnan(temperature_l) || isnan(humidity_l)) {
                 Serial.println("Failed to read from DHT sensor!");
         }
         }
         
-        temperature = temperature_l;
-        humidity = humidity_l;
+        // since we got multiple queue receiver for temperature and humidity, we need to
+        // "serialize" the data send to queue to make sure that all the receiver can get them.
+        for (int j = 0; j < NUM_QUEUE_RECEIVER; j++) {
+            xQueueSend(xTemperatureQueue, &temperature_l, 10 / portTICK_PERIOD_MS);
+            xQueueSend(xHumidityQueue, &humidity_l, 10 / portTICK_PERIOD_MS);
+        }
         
         // sprintf(msgBuf, "Temp: %.2f - Humid: %.2f", temperature, humidity);
         // Serial.println(msgBuf);

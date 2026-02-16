@@ -7,21 +7,29 @@ void taskNeoLED(void *pvParameters) {
     strip.begin();           // INITIALIZE NeoPixel strip object (REQUIRED)
     strip.show();            // Turn OFF all pixels ASAP
     strip.setBrightness(50);
+
     int ledState = 0;
     int statusLoop = 0;
+
+    float temperature_l = 0.0;
+    float humidity_l = 0.0;
+
     while(1) 
     {
+      xQueueReceive(xTemperatureQueue, &temperature_l, 5 / portTICK_PERIOD_MS);
+      xQueueReceive(xHumidityQueue, &humidity_l, 5 / portTICK_PERIOD_MS);
+      // incase the queue does not have data, call to QueueReceive will return pdFalse after timeout,
+      // we assumed that old data is retained when timeout expired.
       if (ledState == 0) 
       {
         switch(statusLoop) 
         {
-          // temperature
           case 0:
-            strip.setPixelColor(0, strip.Color(int(temperature / 100 * 255) , 0, 0));
+            strip.setPixelColor(0, strip.Color(int(temperature_l / 100 * 255) , 0, 0));
             break;
           // humidity
           case 1:
-            strip.setPixelColor(0, strip.Color(0, 0, int(humidity / 100 * 255)));
+            strip.setPixelColor(0, strip.Color(0, 0, int(humidity_l / 100 * 255)));
             break;
         }
         statusLoop = (statusLoop + 1) % 2;

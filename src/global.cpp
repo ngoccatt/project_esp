@@ -1,6 +1,6 @@
 #include "global.hpp"
 
-float temperature = 0.0;
-float humidity = 0.0;
-
 SemaphoreHandle_t xBinarySemaphoreInternet = NULL;
+QueueHandle_t xTemperatureQueue = NULL;
+QueueHandle_t xHumidityQueue = NULL;
+QueueHandle_t xDeviceChangedQueue = xQueueCreate(10, sizeof(bool));

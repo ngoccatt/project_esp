@@ -15,11 +15,11 @@ void Webserver_sendata(String data)
     if (ws.count() > 0)
     {
         ws.textAll(data); // Gửi đến tất cả client đang kết nối
-        Serial.println("Data send to WebSocket: " + data);
+        // Serial.println("Data send to WebSocket: " + data);
     }
     else
     {
-        Serial.println("No client, sent " + data);
+        // Serial.println("No client, sent " + data);
     }
 }
 
@@ -177,12 +177,18 @@ void Webserver_stop()
 
 void Webserver_reconnect()
 {
-    if (!webserver_isrunning)
+    static int delayedLoop = 5;
+    if (delayedLoop > 0)
     {
-        connnectWSV();
+        delayedLoop--;
     }
     else
     {
+        if (!webserver_isrunning)
+        {
+            connnectWSV();
+        }
+        delayedLoop = 5;
     }
 }
 
@@ -191,15 +197,34 @@ void Webserver_update()
     static String data;
     // Allocate the JSON document
     static JsonDocument sendDoc;
+    static float temperature_l = 0.0;
+    static float humidity_l = 0.0;
+    static bool deviceChanged = false;
     if (!webserver_isrunning) return;
     else
     {
-        sendDoc["page"] = "home";
-        sendDoc["value"].to<JsonObject>();
-        sendDoc["value"]["temperature"] = temperature;
-        sendDoc["value"]["humidity"] = humidity;
-        serializeJson(sendDoc, data);
-        Webserver_sendata(data);
+        xQueueReceive(xTemperatureQueue, &temperature_l, 5 / portTICK_PERIOD_MS);
+        xQueueReceive(xHumidityQueue, &humidity_l, 5 / portTICK_PERIOD_MS);
+        xQueueReceive(xDeviceChangedQueue, &deviceChanged, 5 / portTICK_PERIOD_MS);
+        {
+            sendDoc["page"] = "home";
+            sendDoc["value"].to<JsonObject>();
+            sendDoc["value"]["temperature"] = temperature_l;
+            sendDoc["value"]["humidity"] = humidity_l;
+            serializeJson(sendDoc, data);
+            Webserver_sendata(data);
+        }
+        if (deviceChanged) {
+            sendDoc.clear();
+            JsonDocument tempDoc;
+            if (getDeviceList(tempDoc)) {
+                sendDoc["page"] = "device";
+                sendDoc["value"] = tempDoc.as<JsonObject>();
+            }
+            serializeJson(sendDoc, data);
+            Webserver_sendata(data);
+            deviceChanged = false;
+        }
     }
 }
 
@@ -208,6 +233,6 @@ void task_run_WebServer(void *pvParameters) {
     {
         Webserver_reconnect();
         Webserver_update();
-        vTaskDelay(2000);
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 }
