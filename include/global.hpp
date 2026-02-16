@@ -10,5 +10,7 @@
 extern float temperature;
 extern float humidity;
 
+extern SemaphoreHandle_t xBinarySemaphoreInternet;
+
 #endif //_GLOBAL_HPP
 

@@ -14,9 +14,5 @@ void task_run_WiFiManager(void *pvParameters);
 String getCurrentIP();
 String getCurrentSSID();
 String getCurrentPASS();
-String getCurrentToken();
-String getCurrentServer();
-String getCurrentPort();
-bool updateCoreIoTConfig(String token, String server, String port);
 
 #endif // _WIFI_MANAGER_HPP_

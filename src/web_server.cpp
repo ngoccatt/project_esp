@@ -3,6 +3,7 @@
 #include "global.hpp"
 #include "wifi_manager.hpp"
 #include "devices_manager.hpp"
+#include "task_core_iot.h"
 
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
@@ -77,9 +78,12 @@ void requestProcessing(String data)
             // trim function will remove leading/trailing spaces, lead to empty string ""
             wifi_ssid.trim();
             wifi_pass.trim();
+            token.trim();
+            server.trim();
+            port.trim();
 
             updateSTAConfig(wifi_ssid, wifi_pass);
-            updateCoreIoTConfig(token, server, port);
+            updateCoreIoTConfig(server, token, port);
 
             JsonDocument infoDoc;
             loadInfoFile(infoDoc);
@@ -96,7 +100,7 @@ void requestProcessing(String data)
             Serial.println("HANDLING DEVICES");
             String device_name = recvDoc["value"]["name"].as<String>();
             int device_gpio = recvDoc["value"]["gpio"].as<int>();
-            bool status = recvDoc["value"]["status"].as<String>() == "ON" ? true : false;
+            bool status = recvDoc["value"]["status"].as<bool>();
             String action = recvDoc["value"]["action"].as<String>();
             if (action == "create")
             {
@@ -125,9 +129,9 @@ void requestProcessing(String data)
             sendDoc["page"] = "setting";
             sendDoc["value"]["ssid"] = getCurrentSSID();
             sendDoc["value"]["password"] = getCurrentPASS();
-            sendDoc["value"]["token"] = getCurrentToken();
-            sendDoc["value"]["server"] = getCurrentServer();
-            sendDoc["value"]["port"] = getCurrentPort();
+            sendDoc["value"]["token"] = coreIotGetCurrentToken();
+            sendDoc["value"]["server"] = coreIotGetCurrentServer();
+            sendDoc["value"]["port"] = coreIotGetCurrentPort();
             serializeJson(sendDoc, sendData);
             Webserver_sendata(sendData);
         }

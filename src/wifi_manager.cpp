@@ -1,14 +1,14 @@
 #include "wifi_manager.hpp"
+#include "global.hpp"
 #include "littleFS_manager.hpp"
 
 String WIFI_SSID = "";
 String WIFI_PASS = "";
 String currentIP = "";
-String CORE_IOT_TOKEN = "";
-String CORE_IOT_SERVER = "";
-String CORE_IOT_PORT = "";
 
 bool reConnectRequired = false;
+
+const int NUM_OF_TRIALS_FOR_STA = 5;
 
 void startAP()
 {
@@ -39,41 +39,21 @@ String getCurrentPASS()
     return WIFI_PASS;
 }
 
-String getCurrentToken()
-{
-    return CORE_IOT_TOKEN;
-}
-
-String getCurrentServer()
-{
-    return CORE_IOT_SERVER;
-}
-
-String getCurrentPort()
-{
-    return CORE_IOT_PORT;
-}
-
-bool updateCoreIoTConfig(String token, String server, String port)
-{
-    CORE_IOT_TOKEN = token;
-    CORE_IOT_SERVER = server;
-    CORE_IOT_PORT = port;
-    return true;
-}
-
 bool updateSTAConfig(String ssid, String pass)
 {
+    reConnectRequired = true;
     if (ssid.isEmpty())
     {
         WIFI_SSID = "";
         WIFI_PASS = "";
         return false;
     }
-    WIFI_SSID = ssid;
-    WIFI_PASS = pass;
-    reConnectRequired = true;
-    return true;
+    else
+    {
+        WIFI_SSID = ssid;
+        WIFI_PASS = pass;
+        return true;
+    }
 }   
 
 void startSTA()
@@ -119,7 +99,7 @@ void startSTA()
     Serial.println(WiFi.localIP());
     currentIP = WiFi.localIP().toString();
     // Give a semaphore here
-    // xSemaphoreGive(xBinarySemaphoreInternet);
+    xSemaphoreGive(xBinarySemaphoreInternet);
 }
 
 bool Wifi_reconnect()
@@ -149,7 +129,7 @@ void task_run_WiFiManager(void *pvParameters)
         {
             Serial.println("WiFi STA reconnect trial: " + String(staTrials));
             staTrials++;
-            if (staTrials > 10) {
+            if (staTrials > NUM_OF_TRIALS_FOR_STA) {
                 staTrials = 0;
                 updateSTAConfig("", "");
                 startAP();

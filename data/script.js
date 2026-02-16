@@ -76,8 +76,8 @@ function processMessage(type, data) {
         if (!data || typeof data !== "object") {
             data = {};
         }
-        Object.entries(data).forEach(([name, gpio]) => {
-            relayList.push({ id: name+gpio, name, gpio, state: false });
+        Object.entries(data).forEach(([name, config]) => {
+            relayList.push({ id: name+config.gpio, name, gpio: config.gpio, state: config.status });
         });
         renderRelays();
     }
@@ -214,7 +214,7 @@ function saveRelay() {
         type: "request",
         value: {
             name: name,
-            status: "OFF",
+            status: false,
             gpio: gpio,
             action: "create"
         }
@@ -250,7 +250,7 @@ function toggleRelay(id) {
             type: "request",
             value: {
                 name: relay.name,
-                status: relay.state ? "ON" : "OFF",
+                status: relay.state,
                 gpio: relay.gpio,
                 action: "control"
             }
@@ -273,7 +273,7 @@ function confirmDelete() {
         type: "request",
         value: {
             name: relay.name,
-            status: "OFF",
+            status: false,
             gpio: relay.gpio,
             action: "remove"
         }
