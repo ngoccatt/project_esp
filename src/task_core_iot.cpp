@@ -12,11 +12,11 @@ String CORE_IOT_PORT = "";
 constexpr uint16_t MAX_MESSAGE_SEND_SIZE = 256U;
 constexpr uint16_t MAX_MESSAGE_RECEIVE_SIZE = 256U;
 
-constexpr const char RPC_JSON_METHOD[] = "example_json";
-constexpr const char RPC_TEMPERATURE_METHOD[] = "example_set_temperature";
-constexpr const char RPC_SWITCH_METHOD[] = "example_set_switch";
-constexpr const char RPC_TEMPERATURE_KEY[] = "temp";
-constexpr const char RPC_SWITCH_KEY[] = "switch";
+// constexpr const char RPC_JSON_METHOD[] = "example_json";
+// constexpr const char RPC_TEMPERATURE_METHOD[] = "example_set_temperature";
+// constexpr const char RPC_SWITCH_METHOD[] = "example_set_switch";
+// constexpr const char RPC_TEMPERATURE_KEY[] = "temp";
+// constexpr const char RPC_SWITCH_KEY[] = "switch";
 
 constexpr uint8_t MAX_RPC_SUBSCRIPTIONS = 3U;
 constexpr uint8_t MAX_RPC_RESPONSE = 5U;
@@ -41,9 +41,10 @@ bool reConnecteRequired = false;
 /// @brief Processes function for RPC call "setValueLed1"
 /// JsonVariantConst is a JSON variant, that can be queried using operator[]
 /// See https://arduinojson.org/v5/api/jsonvariant/subscript/ for more details
-/// @param data Data containing the rpc data that was called and its current value
+/// @param data Data containing the rpc data that was called and its current value. 
+/// Expect a JSON in the format {"name": deviceName, "gpio": GPIOpin, "status": true/false}
 /// @param response Data containgin the response value, any number, string or json, that should be sent to the cloud. Useful for getMethods
-void setValueLed1(const JsonVariantConst &data, JsonDocument &response) {
+void setValueLed(const JsonVariantConst &data, JsonDocument &response) {
 
     Serial.println("Received Switch state: " + data.as<String>());
     controlSimpleDevice(data["name"].as<String>(), data["gpio"].as<int>(), data["status"].as<bool>());
@@ -114,7 +115,7 @@ void coreIotReconnect()
         {
             Serial.println("Subscribing for RPC...");
             const std::array<RPC_Callback, MAX_RPC_SUBSCRIPTIONS> callbacks = {
-                RPC_Callback{"setValueLed1", setValueLed1}
+                RPC_Callback{"setValueLed", setValueLed}
             };
 
             subscribed = rpc.RPC_Subscribe(callbacks.begin(), callbacks.end());
