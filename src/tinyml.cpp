@@ -1,6 +1,8 @@
 #include "tinyml.h"
 #include "global.hpp"
 
+#define NUM_OF_RECEIVER_TINYML 2
+
 // Globals, for the convenience of one-shot setup.
 namespace
 {
@@ -15,6 +17,7 @@ namespace
 
 void setupTinyML()
 {
+    xAnomalyQueue = xQueueCreate(5, sizeof(float));
     Serial.println("TensorFlow Lite Init....");
     static tflite::MicroErrorReporter micro_error_reporter;
     error_reporter = &micro_error_reporter;
@@ -77,7 +80,10 @@ void tiny_ml_task(void *pvParameters)
         // for sigmoid output, abnormally is indicated by output close to 1, and normal is indicated by output close to 0.
         // here, for any value above 0.5, we consider it as anomaly, otherwise normal. 
         Serial.println("Inference result: " + String(result) + " - " + String((result > 0.5) ? "Anomaly Detected" : "Normal"));
+        for (int i = 0; i < NUM_OF_RECEIVER_TINYML; i++) {
+            xQueueSend(xAnomalyQueue, &result, 5 / portTICK_PERIOD_MS);
+        }
 
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
+        vTaskDelay(2000 / portTICK_PERIOD_MS);
     }
 }

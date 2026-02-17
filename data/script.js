@@ -6,6 +6,8 @@ const MAX_TEMP = 100
 const MIN_TEMP = 0
 const MAX_HUMID = 100
 const MIN_HUMID = 0
+const MAX_ANOMALY = 1
+const MIN_ANOMALY = 0
 const TEMP_HUMID_TIMEOUT_MS = 10000
 
 var temp_humid_updated = false;
@@ -61,12 +63,14 @@ function processMessage(type, data) {
     {
         let temp = parseFloat(data["temperature"]);
         let humidity = parseFloat(data["humidity"]);
+        let anomaly = parseFloat(data["anomaly"]);
         if (isNaN(temp) || temp === undefined || isNaN(humidity) || humidity === undefined) {
             console.warn("Dữ liệu thiếu trường 'temperature' hoặc 'humidity':", temp, humidity);
             return;
         }
         updateGauge('gauge_temp', temp, MIN_TEMP, MAX_TEMP);
         updateGauge('gauge_humi', humidity, MIN_HUMID, MAX_HUMID);
+        updateGauge('gauge_anomaly', anomaly, MIN_ANOMALY, MAX_ANOMALY);
         temp_humid_updated = true;
         lastTempHumidUpdate = Date.now();
     }
@@ -167,6 +171,13 @@ function updateGauge(id, value, min, max) {
             color = '#0288D1'; // Dark blue - humidity
         }
     }
+    else if (id === 'gauge_anomaly') {
+        color = value > 0.5 ? '#FF5722' : '#4CAF50';
+        const conclusion = document.getElementById('gauge_anomaly_conclusion');
+        if (conclusion) {
+            conclusion.textContent = value > 0.5 ? 'Bất thường' : 'Bình thường';
+        }
+    }
     
     arc.style.stroke = color;
 }
@@ -191,6 +202,7 @@ window.onload = function () {
             humidity = Math.floor(Math.random() * (MAX_HUMID - MIN_HUMID + 1)) + MIN_HUMID;
             updateGauge('gauge_temp', temp, MIN_TEMP, MAX_TEMP);
             updateGauge('gauge_humi', humidity, MIN_HUMID, MAX_HUMID);
+            updateGauge('gauge_anomaly', Math.random(), 0, 1); // Simulate anomaly value
         }
     }, 5000);
 };

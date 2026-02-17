@@ -194,26 +194,38 @@ void Webserver_reconnect()
 
 void Webserver_update()
 {
+    // the expected update time for humid/temperature is 2s (100 ms * 20) each.
+    static int delayedLoop = 20;
     static String data;
     // Allocate the JSON document
     static JsonDocument sendDoc;
     static float temperature_l = 0.0;
     static float humidity_l = 0.0;
+    static float anomaly_l = 0.0;
     static bool deviceChanged = false;
     if (!webserver_isrunning) return;
     else
     {
-        xQueueReceive(xTemperatureQueue, &temperature_l, 5 / portTICK_PERIOD_MS);
-        xQueueReceive(xHumidityQueue, &humidity_l, 5 / portTICK_PERIOD_MS);
-        xQueueReceive(xDeviceChangedQueue, &deviceChanged, 5 / portTICK_PERIOD_MS);
+        if (delayedLoop > 0)
         {
+            delayedLoop--;
+        }
+        else
+        {
+            xQueueReceive(xAnomalyQueue, &anomaly_l, 5 / portTICK_PERIOD_MS);
+            xQueueReceive(xTemperatureQueue, &temperature_l, 5 / portTICK_PERIOD_MS);
+            xQueueReceive(xHumidityQueue, &humidity_l, 5 / portTICK_PERIOD_MS);
             sendDoc["page"] = "home";
             sendDoc["value"].to<JsonObject>();
             sendDoc["value"]["temperature"] = temperature_l;
             sendDoc["value"]["humidity"] = humidity_l;
+            sendDoc["value"]["anomaly"] = anomaly_l;
             serializeJson(sendDoc, data);
             Webserver_sendata(data);
+            delayedLoop = 20;
         }
+
+        xQueueReceive(xDeviceChangedQueue, &deviceChanged, 5 / portTICK_PERIOD_MS);
         if (deviceChanged) {
             sendDoc.clear();
             JsonDocument tempDoc;
@@ -233,6 +245,6 @@ void task_run_WebServer(void *pvParameters) {
     {
         Webserver_reconnect();
         Webserver_update();
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }

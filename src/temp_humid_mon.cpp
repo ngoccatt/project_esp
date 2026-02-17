@@ -57,8 +57,8 @@ void taskMonitorTempHumid(void *pvParameters) {
             xQueueSend(xHumidityQueue, &humidity_l, 10 / portTICK_PERIOD_MS);
         }
         
-        // sprintf(msgBuf, "Temp: %.2f - Humid: %.2f", temperature, humidity);
-        // Serial.println(msgBuf);
+        sprintf(msgBuf, "Temp: %.2f - Humid: %.2f", temperature_l, humidity_l);
+        Serial.println(msgBuf);
 
         // dht library require each data reading must >= 1s
         vTaskDelay(5000 / portTICK_PERIOD_MS);

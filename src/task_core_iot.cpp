@@ -129,9 +129,10 @@ void coreIotReconnect()
 
 void coreIotUploadData()
 {
-    static int delayedLoop = 1;
+    static int delayedLoop = 20;
     static float temperature_l = 0.0;
     static float humidity_l = 0.0;
+    static float anomaly_l = 0.0;
     static bool deviceChanged = false;
     // We do not want to upload data in every loop, so we can use a simple counter to create a delay
     if (delayedLoop > 0)
@@ -143,10 +144,12 @@ void coreIotUploadData()
         // Temperature and humidity shall be send cylicly, so we can wait for a delay.
         xQueueReceive(xTemperatureQueue, &temperature_l, 5 / portTICK_PERIOD_MS);
         xQueueReceive(xHumidityQueue, &humidity_l, 5 / portTICK_PERIOD_MS);
+        xQueueReceive(xAnomalyQueue, &anomaly_l, 5 / portTICK_PERIOD_MS);
 
         coreIotSendData("telemetry", "temperature", String(temperature_l));
         coreIotSendData("telemetry", "humidity", String(humidity_l));
-        delayedLoop = 1;
+        coreIotSendData("telemetry", "anomaly", String(anomaly_l));
+        delayedLoop = 20;
     }
     xQueueReceive(xDeviceChangedQueue, &deviceChanged, 5 / portTICK_PERIOD_MS);
     if (deviceChanged) {
@@ -157,7 +160,7 @@ void coreIotUploadData()
                 String name = kv.key().c_str();
                 bool status = kv.value().as<JsonObject>()["status"].as<bool>();
                 tb.sendAttributeData(name.c_str(), status ? "true" : "false");
-                Serial.println("Device " + name + " changed, new status: " + (status ? "true" : "false"));
+                // Serial.println("Device " + name + " changed, new status: " + (status ? "true" : "false"));
             }
         }
         deviceChanged = false;
@@ -196,6 +199,6 @@ void taskCoreIot(void *pvParameters)
             vTaskDelay(5000 / portTICK_PERIOD_MS);
         }
         // this Task delay is important to prevent the task from consuming all CPU time while waiting for the semaphore. Without this delay, the background task won't be able to get the cpu and reset the watchdog, which will lead to a crash of the system.
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }
