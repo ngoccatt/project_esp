@@ -4,6 +4,9 @@
 #include "devices_manager.hpp"
 #include "temp_humid_mon.hpp"
 #include "tinyml.h"
+#include "wifi_manager.hpp"
+
+#define MAX_CORE_IOT_RECONNECT 10
 
 String CORE_IOT_TOKEN = "";
 String CORE_IOT_SERVER = "";
@@ -102,12 +105,21 @@ String coreIotGetCurrentPort()
 
 void coreIotReconnect()
 {
+    static int reconnectAttempts = MAX_CORE_IOT_RECONNECT;
+    // try to reconnect 10 times, if not successfull, get the current wifi status. Wifi might be disconnected.
+    if (reconnectAttempts <= 0) {
+        wifi_connected = isWifiConnected();
+        reconnectAttempts = MAX_CORE_IOT_RECONNECT;
+        return;
+    }
+    
     if (!tb.connected() || reConnecteRequired)
     {
         Serial.println("IP: " + WiFi.localIP().toString() + " Attempt to connect, using server: " + CORE_IOT_SERVER + " token: " + CORE_IOT_TOKEN + " port: " + CORE_IOT_PORT);
         if (!tb.connect(CORE_IOT_SERVER.c_str(), CORE_IOT_TOKEN.c_str(), CORE_IOT_PORT.toInt()))
         {
             Serial.println("Failed to connect core IoT");
+            reconnectAttempts--;
             return;
         }
 
@@ -125,6 +137,7 @@ void coreIotReconnect()
 
         tb.sendAttributeData("localIp", WiFi.localIP().toString().c_str());
         reConnecteRequired = false;
+        reconnectAttempts = MAX_CORE_IOT_RECONNECT;
     }
     return;
 }
@@ -136,6 +149,7 @@ void coreIotUploadData()
     static float humidity_l = 0.0;
     static float anomaly_l = 0.0;
     static bool deviceChanged = false;
+    JsonDocument deviceDoc;
     // We do not want to upload data in every loop, so we can use a simple counter to create a delay
     if (delayedLoop > 0)
     {
@@ -155,7 +169,6 @@ void coreIotUploadData()
     }
     xQueueReceive(xDeviceChangedQueue, &deviceChanged, 5 / portTICK_PERIOD_MS);
     if (deviceChanged) {
-        JsonDocument deviceDoc;
         // query the device status and send it to coreiot.
         if (getDeviceList(deviceDoc)) {
             for (JsonPair kv : deviceDoc.as<JsonObject>()) {
@@ -175,12 +188,19 @@ void taskCoreIot(void *pvParameters)
     tempHumidMonQueueReceiverCountInc();
     deviceChangedQueueReceiverCountInc();
     tinyMLQueueReceiverCountInc();
+    static int delayedLoop = 0;
     while (true)
     {
         if (wifi_connected)
         {
-            /// create a connection to the ThingsBoard server if there is none yet or the connection was disrupted
-            coreIotReconnect();
+            // create a connection to the ThingsBoard server if there is none yet or the connection was disrupted
+            // try to reconnect after every 20 * 100 = 2000 ms. 
+            if (delayedLoop == 0) {
+                coreIotReconnect();
+                delayedLoop = 20;
+            }
+            
+            delayedLoop--;
 
             if (tb.connected())
             {
