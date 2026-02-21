@@ -8,7 +8,7 @@ String currentIP = "";
 
 bool reConnectRequired = false;
 
-const int NUM_OF_TRIALS_FOR_STA = 5;
+#define NUM_OF_TRIALS_FOR_STA 5
 
 void startAP()
 {
@@ -22,6 +22,16 @@ void startAP()
     Serial.print("AP IP: ");
     Serial.println(WiFi.softAPIP());
     currentIP = WiFi.softAPIP().toString();
+}
+
+bool isWifiConnected()
+{
+    return WiFi.status() == WL_CONNECTED;
+}
+
+int WifiStrength()
+{
+    return WiFi.RSSI();
 }
 
 String getCurrentIP()

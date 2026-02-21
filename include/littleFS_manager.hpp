@@ -5,7 +5,7 @@
 #include "Arduino.h"
 #include <ArduinoJson.h>
 
-bool initializeLittleFS(bool check);
+bool initializeLittleFS();
 
 bool loadInfoFile(JsonDocument& doc);
 

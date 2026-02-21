@@ -4,9 +4,55 @@
 #include "wifi_manager.hpp"
 #include "devices_manager.hpp"
 #include "task_core_iot.h"
+#include "temp_humid_mon.hpp"
+#include "tinyml.h"
 
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
+
+/*
+Format for incoming json request:
+{
+    "page": "setting" / "device",
+    "type": "request" / "query",
+    "value": {
+        // for setting page, value will contain the new settings to update
+        "ssid" : "SSID of WiFi",
+        "password" : "Password of WiFi",
+        "token" : "Core IoT Token",
+        "server" : "Core IoT Server",
+        "port" : "Core IoT Port"
+        // -------------------------------------------------------------------------------------
+        // for device page, value will contain ONE device control info (name, gpio, status)
+        "name" : "Name of device",
+        "gpio" : GPIO pin number,
+        "status" : true/false,
+        "action" : "create" / "control" / "remove"
+    }
+}
+// For "request" type, value must contained the values need to be updated
+// For "query" type, value won't be processed, since we will feeback the status from our side.
+*/
+
+/*
+Format for outgoing json response (for "query" request):
+{
+    "page": "setting" / "device",
+    "value": {
+        // for setting page, value will contain the current settings
+        "ssid" : "SSID of WiFi",
+        "password" : "Password of WiFi",
+        "token" : "Core IoT Token",
+        "server" : "Core IoT Server",
+        "port" : "Core IoT Port"
+        // -------------------------------------------------------------------------------------
+        // for device page, value will contain ALL current device control info (name, gpio, status)
+        {"deviceName1": {"gpio": GPIOpin, "status": false}},
+        {"deviceName2": {"gpio": GPIOpin, "status": false}},
+        ...
+    }
+}
+*/
 
 bool webserver_isrunning = false;
 
@@ -241,6 +287,9 @@ void Webserver_update()
 }
 
 void task_run_WebServer(void *pvParameters) {
+    tempHumidMonQueueReceiverCountInc();
+    deviceChangedQueueReceiverCountInc();
+    tinyMLQueueReceiverCountInc();
     while(true) 
     {
         Webserver_reconnect();

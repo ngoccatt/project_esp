@@ -2,6 +2,8 @@
 #include "task_core_iot.h"
 #include "global.hpp"
 #include "devices_manager.hpp"
+#include "temp_humid_mon.hpp"
+#include "tinyml.h"
 
 String CORE_IOT_TOKEN = "";
 String CORE_IOT_SERVER = "";
@@ -102,7 +104,7 @@ void coreIotReconnect()
 {
     if (!tb.connected() || reConnecteRequired)
     {
-        Serial.println("Attemp to connect, using server: " + CORE_IOT_SERVER + " token: " + CORE_IOT_TOKEN + " port: " + CORE_IOT_PORT);
+        Serial.println("IP: " + WiFi.localIP().toString() + " Attempt to connect, using server: " + CORE_IOT_SERVER + " token: " + CORE_IOT_TOKEN + " port: " + CORE_IOT_PORT);
         if (!tb.connect(CORE_IOT_SERVER.c_str(), CORE_IOT_TOKEN.c_str(), CORE_IOT_PORT.toInt()))
         {
             Serial.println("Failed to connect core IoT");
@@ -170,6 +172,9 @@ void coreIotUploadData()
 void taskCoreIot(void *pvParameters)
 {
     wifi_connected = false;
+    tempHumidMonQueueReceiverCountInc();
+    deviceChangedQueueReceiverCountInc();
+    tinyMLQueueReceiverCountInc();
     while (true)
     {
         if (wifi_connected)

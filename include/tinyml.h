@@ -15,4 +15,8 @@
 void setupTinyML();
 void tiny_ml_task(void *pvParameters);
 
+// TinyML produce a Queue notifying anomaly detection results, so who ever need to access the Queue need to 
+// call this function to increase the receiver count.
+void tinyMLQueueReceiverCountInc();
+
 #endif

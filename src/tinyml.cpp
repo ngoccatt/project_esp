@@ -1,7 +1,12 @@
 #include "tinyml.h"
 #include "global.hpp"
+#include "temp_humid_mon.hpp"
 
-#define NUM_OF_RECEIVER_TINYML 2
+int tinyMLReceiverCount = 0;
+
+void tinyMLQueueReceiverCountInc() {
+    tinyMLReceiverCount++;
+}
 
 // Globals, for the convenience of one-shot setup.
 namespace
@@ -52,6 +57,7 @@ void setupTinyML()
 void tiny_ml_task(void *pvParameters)
 {
 
+    tempHumidMonQueueReceiverCountInc();
     static float temperature_l = 0.0;
     static float humidity_l = 0.0;
 
@@ -80,7 +86,7 @@ void tiny_ml_task(void *pvParameters)
         // for sigmoid output, abnormally is indicated by output close to 1, and normal is indicated by output close to 0.
         // here, for any value above 0.5, we consider it as anomaly, otherwise normal. 
         Serial.println("Inference result: " + String(result) + " - " + String((result > 0.5) ? "Anomaly Detected" : "Normal"));
-        for (int i = 0; i < NUM_OF_RECEIVER_TINYML; i++) {
+        for (int i = 0; i < tinyMLReceiverCount; i++) {
             xQueueSend(xAnomalyQueue, &result, 5 / portTICK_PERIOD_MS);
         }
 

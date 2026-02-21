@@ -2,16 +2,31 @@
 #include "wifi_manager.hpp"
 
 
-bool initializeLittleFS(bool check)
+/*
+File format:
 {
-  if (!check)
-  {
+  "setting" : {
+    "WIFI_SSID": "ssid",
+    "WIFI_PASS": "pass",
+    "CORE_IOT_TOKEN": "token",
+    "CORE_IOT_SERVER": "server",
+    "CORE_IOT_PORT": "port"
+    },
+  "device": {
+    "deviceName1": {"gpio": GPIOpin, "status": false},
+    "deviceName2": {"gpio": GPIOpin, "status": false},
+    ...
+  },
+}
+*/
+
+bool initializeLittleFS()
+{
     if (!LittleFS.begin(true))
     {
       Serial.println("[ERROR] Cannot initialize Little FS");
       return false;
     }
-  }
   return true;
 }
 

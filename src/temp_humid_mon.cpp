@@ -5,7 +5,11 @@
 #define I2C_SDA 11
 #define I2C_SCL 12
 
-#define NUM_QUEUE_RECEIVER 4
+int tempHumidMonReceiverCount = 0;
+
+void tempHumidMonQueueReceiverCountInc() {
+    tempHumidMonReceiverCount++;
+}
 
 void taskMonitorTempHumid(void *pvParameters) {
     xTemperatureQueue = xQueueCreate(10, sizeof(float));
@@ -52,7 +56,7 @@ void taskMonitorTempHumid(void *pvParameters) {
         
         // since we got multiple queue receiver for temperature and humidity, we need to
         // "serialize" the data send to queue to make sure that all the receiver can get them.
-        for (int j = 0; j < NUM_QUEUE_RECEIVER; j++) {
+        for (int j = 0; j < tempHumidMonReceiverCount; j++) {
             xQueueSend(xTemperatureQueue, &temperature_l, 10 / portTICK_PERIOD_MS);
             xQueueSend(xHumidityQueue, &humidity_l, 10 / portTICK_PERIOD_MS);
         }

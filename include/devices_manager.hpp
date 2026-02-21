@@ -12,4 +12,8 @@ bool removeSimpleDevice(String deviceName, int GPIOpin);
 
 bool getDeviceList(JsonDocument& deviceList);
 
+// Device Manager produce a Queue notifying device status change, so who ever need to access the Queue need to 
+// call this function to increase the receiver count.
+void deviceChangedQueueReceiverCountInc();
+
 #endif // _DEVICES_MANAGER_HPP_

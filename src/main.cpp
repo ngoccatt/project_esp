@@ -14,8 +14,9 @@
 
 void infoFileSetup()
 {
-  initializeLittleFS(false);
+  initializeLittleFS();
   JsonDocument infoDoc;
+  // if info file exists, load the info into Wifi, coreIot and Device manager modules.
   if (loadInfoFile(infoDoc))
   {
     String wifi_ssid = infoDoc["setting"]["WIFI_SSID"].as<String>();
@@ -49,7 +50,6 @@ void infoFileSetup()
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
-  initializeLittleFS(false);
   infoFileSetup();
   // prepare semaphore initialization.
   xBinarySemaphoreInternet = xSemaphoreCreateBinary();
