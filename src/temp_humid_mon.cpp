@@ -27,7 +27,6 @@ void taskMonitorTempHumid(void *pvParameters) {
     float temperature_l = 0.0;
     float humidity_l = 0.0;
 
-
     while (true) 
     {
         checkConnection_l = dht20.isConnected();
@@ -51,7 +50,7 @@ void taskMonitorTempHumid(void *pvParameters) {
             // Check if any reads failed then use dummy values
             if (isnan(temperature_l) || isnan(humidity_l)) {
                 Serial.println("Failed to read from DHT sensor!");
-        }
+            }
         }
         
         // since we got multiple queue receiver for temperature and humidity, we need to

@@ -55,9 +55,9 @@ void setup() {
   xBinarySemaphoreInternet = xSemaphoreCreateBinary();
 
   // Tasks creation
-  xTaskCreate(taskLEDblinky, "LED Blinky", 1024, NULL, 1, NULL);
   xTaskCreate(task_run_WiFiManager, "WiFi Manager", 4096, NULL, 3, NULL);
   xTaskCreate(taskMonitorTempHumid, "Temp_Humid", 4096, NULL, 3, NULL);
+  xTaskCreate(taskLEDblinky, "LED Blinky", 1024, NULL, 1, NULL);
   xTaskCreate(taskNeoLED, "LED Blink", 2048, NULL, 2, NULL);
   xTaskCreate(task_run_WebServer, "Web Server", 1024*8, NULL, 3, NULL);
   xTaskCreate(tiny_ml_task, "TinyML Task", 4096*2, NULL, 3, NULL);

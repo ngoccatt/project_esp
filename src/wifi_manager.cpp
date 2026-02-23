@@ -29,7 +29,7 @@ bool isWifiConnected()
     return WiFi.status() == WL_CONNECTED;
 }
 
-int WifiStrength()
+int getWifiStrength()
 {
     return WiFi.RSSI();
 }
@@ -132,7 +132,7 @@ void task_run_WiFiManager(void *pvParameters)
     startAP();
     while (true)
     {
-        // if 10 trials and no connection, revert back to AP mode.
+        // if NUM_OF_TRIALS_FOR_STA trials and no connection, revert back to AP mode.
         // reset SSID to "" will prevent STA function to run.
         if (reConnectRequired) staTrials = 0;
         if (WiFi.status() != WL_CONNECTED || reConnectRequired)

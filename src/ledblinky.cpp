@@ -9,14 +9,14 @@ void taskLEDblinky(void *pvParameters) {
     float unused_l = 0.0;
     int delay_time = 2000; // default delay time in milliseconds
     int polling_interval = 2000; // default polling interval in milliseconds
-    int polling_counter = polling_interval / delay_time; // Initialize the counter based on the polling interval and delay time
+    int polling_counter = 0; // Initialize the counter to 0 so that it will read the queue immediately upon task startup.
 
     tempHumidMonQueueReceiverCountInc();
     pinMode(LED_STATUS_PIN, OUTPUT);
 
     while(true)
     {
-        if (polling_counter == 0) {
+        if (polling_counter <= 0) {
             xQueueReceive(xTemperatureQueue, &temperature_l, 5 / portTICK_PERIOD_MS);
             xQueueReceive(xHumidityQueue, &unused_l, 5 / portTICK_PERIOD_MS);
             polling_counter = polling_interval / delay_time; // Reset the counter based on the polling interval

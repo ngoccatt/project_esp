@@ -223,7 +223,7 @@ void Webserver_stop()
 
 void Webserver_reconnect()
 {
-    static int delayedLoop = 5;
+    static int delayedLoop = 20;
     if (delayedLoop > 0)
     {
         delayedLoop--;
@@ -234,7 +234,7 @@ void Webserver_reconnect()
         {
             connnectWSV();
         }
-        delayedLoop = 5;
+        delayedLoop = 20;
     }
 }
 

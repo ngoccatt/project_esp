@@ -194,10 +194,10 @@ void taskCoreIot(void *pvParameters)
         if (wifi_connected)
         {
             // create a connection to the ThingsBoard server if there is none yet or the connection was disrupted
-            // try to reconnect after every 20 * 100 = 2000 ms. 
-            if (delayedLoop == 0) {
+            // try to reconnect after every 100 * 100 = 10000 ms. 
+            if (delayedLoop <= 0) {
                 coreIotReconnect();
-                delayedLoop = 20;
+                delayedLoop = 100;
             }
             
             delayedLoop--;
@@ -212,7 +212,7 @@ void taskCoreIot(void *pvParameters)
         else if (!wifi_connected && xBinarySemaphoreInternet != NULL)
         {
             // Wait until we are connected to the internet before trying to establish a connection to ThingsBoard
-            if (xSemaphoreTake(xBinarySemaphoreInternet, 1000 / portTICK_PERIOD_MS) == pdTRUE)
+            if (xSemaphoreTake(xBinarySemaphoreInternet, 5 / portTICK_PERIOD_MS) == pdTRUE)
             {
                 Serial.println("Internet connection established, starting Core IoT task");
                 wifi_connected = true;
@@ -223,7 +223,8 @@ void taskCoreIot(void *pvParameters)
             }
             vTaskDelay(5000 / portTICK_PERIOD_MS);
         }
-        // this Task delay is important to prevent the task from consuming all CPU time while waiting for the semaphore. Without this delay, the background task won't be able to get the cpu and reset the watchdog, which will lead to a crash of the system.
+        // this Task delay is important to prevent the task from consuming all CPU time while waiting for the semaphore. 
+        // Without this delay, the background task won't be able to get the cpu and reset the watchdog, which will lead to a crash of the system.
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }
