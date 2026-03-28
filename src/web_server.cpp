@@ -5,7 +5,9 @@
 #include "devices_manager.hpp"
 #include "task_core_iot.h"
 #include "temp_humid_mon.hpp"
-#include "tinyml.h"
+// #include "tinyml.h"
+#include "tinyml_img.h"
+#include "image_concat.hpp"
 
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
@@ -88,7 +90,7 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
             String message;
             message += String((char *)data).substring(0, len);
             requestProcessing(message);
-            Serial.printf("Received Data: %s", message.c_str());
+            Serial.printf("Received Data: %s", message.substring(0, 100).c_str());
         }
     }
 }
@@ -109,6 +111,36 @@ void requestProcessing(String data)
     // First, get the page of request
     String page = recvDoc["page"];
     String type = recvDoc["type"];
+
+    if (page == "ai_detect")
+    {
+        if (type == "image_start")
+        {
+            String imageId = recvDoc["value"]["imageId"].as<String>();
+            int totalChunks = recvDoc["value"]["totalChunks"].as<int>();
+            imageConcatStart(imageId, totalChunks);
+            return;
+        }
+
+        if (type == "image_chunk")
+        {
+            String imageId = recvDoc["value"]["imageId"].as<String>();
+            int index = recvDoc["value"]["index"].as<int>();
+            String chunk = recvDoc["value"]["chunk"].as<String>();
+
+            imageConcatAppendChunk(imageId, index, chunk);
+            return;
+        }
+
+        if (type == "image_end")
+        {
+            String imageId = recvDoc["value"]["imageId"].as<String>();
+
+            imageConcatFinish(imageId);
+            return;
+        }
+    }
+
     if (type == "request") {
         // for "setting" page, we update the WIFI and CORE IOT settings
         if (page == "setting")
@@ -160,6 +192,12 @@ void requestProcessing(String data)
             {
                 removeSimpleDevice(device_name, device_gpio);
             }
+        } else if (page == "ai_detect") {
+            Serial.println("HANDLING AI DETECT");
+            String chunkIndex = recvDoc["value"]["chunkIndex"].as<String>();
+            String totalChunks = recvDoc["value"]["totalChunks"].as<String>();
+            String base64ImageData = recvDoc["value"]["imageData"].as<String>();
+            
         }
         else
         {
@@ -212,6 +250,7 @@ void connnectWSV()
               { request->send(LittleFS, "/styles.css", "text/css"); });
     server.begin();
     webserver_isrunning = true;
+    Serial.println("Web server up and running!");
 }
 
 void Webserver_stop()
@@ -232,7 +271,9 @@ void Webserver_reconnect()
     {
         if (!webserver_isrunning)
         {
+            Serial.println("Web server NOT up and running!");
             connnectWSV();
+            
         }
         delayedLoop = 20;
     }
@@ -249,7 +290,10 @@ void Webserver_update()
     static float humidity_l = 0.0;
     static float anomaly_l = 0.0;
     static bool deviceChanged = false;
-    if (!webserver_isrunning) return;
+    if (!webserver_isrunning)
+    {
+        return;
+    } 
     else
     {
         if (delayedLoop > 0)
@@ -258,7 +302,7 @@ void Webserver_update()
         }
         else
         {
-            xQueueReceive(xAnomalyQueue, &anomaly_l, 5 / portTICK_PERIOD_MS);
+            // xQueueReceive(xAnomalyQueue, &anomaly_l, 5 / portTICK_PERIOD_MS);
             xQueueReceive(xTemperatureQueue, &temperature_l, 5 / portTICK_PERIOD_MS);
             xQueueReceive(xHumidityQueue, &humidity_l, 5 / portTICK_PERIOD_MS);
             sendDoc["page"] = "home";
@@ -289,7 +333,7 @@ void Webserver_update()
 void task_run_WebServer(void *pvParameters) {
     tempHumidMonQueueReceiverCountInc();
     deviceChangedQueueReceiverCountInc();
-    tinyMLQueueReceiverCountInc();
+    // tinyMLQueueReceiverCountInc();
     while(true) 
     {
         Webserver_reconnect();

@@ -6,7 +6,8 @@
 #include "littleFS_manager.hpp"
 #include "ledblinky.hpp"
 #include "devices_manager.hpp"
-#include "tinyml.h"
+// #include "tinyml.h"
+#include "tinyml_img.h"
 #include "task_core_iot.h"
 #include "global.hpp"
 
@@ -53,14 +54,15 @@ void setup() {
   infoFileSetup();
   // prepare semaphore initialization.
   xBinarySemaphoreInternet = xSemaphoreCreateBinary();
-
+  setupTinyMLForImage(NULL);
   // Tasks creation
-  xTaskCreate(task_run_WiFiManager, "WiFi Manager", 4096, NULL, 3, NULL);
+  xTaskCreate(task_run_WiFiManager, "WiFi Manager", 4096, NULL, 2, NULL);
   xTaskCreate(taskMonitorTempHumid, "Temp_Humid", 4096, NULL, 3, NULL);
   xTaskCreate(taskLEDblinky, "LED Blinky", 1024, NULL, 1, NULL);
   xTaskCreate(taskNeoLED, "LED Blink", 2048, NULL, 2, NULL);
   xTaskCreate(task_run_WebServer, "Web Server", 1024*8, NULL, 3, NULL);
-  xTaskCreate(tiny_ml_task, "TinyML Task", 4096*2, NULL, 3, NULL);
+  // xTaskCreate(tiny_ml_task, "TinyML Task", 4096*2, NULL, 3, NULL);
+  xTaskCreate(tinyMLRunImageInference, "tinyml_image", 1024*32, NULL, 3, NULL);
   xTaskCreate(taskCoreIot, "Core IoT", 4096*2, NULL, 3, NULL);
 }
 

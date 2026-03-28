@@ -124,6 +124,217 @@ function showSection(id, event) {
 }
 
 
+// ==================== AI INFO UPLOAD ====================
+let uploadProgressTimer = null;
+const IMAGE_MAX_WIDTH = 96;
+const IMAGE_MAX_HEIGHT = 96;
+const IMAGE_JPEG_QUALITY = 0.65;
+const IMAGE_CHUNK_SIZE = 1024;
+
+function initAiUploadUI() {
+    const aiImageInput = document.getElementById('aiImageInput');
+    if (!aiImageInput) return;
+
+    aiImageInput.addEventListener('change', handleAiImageSelected);
+}
+
+function triggerAiImageInput() {
+    const aiImageInput = document.getElementById('aiImageInput');
+    if (aiImageInput) {
+        aiImageInput.click();
+    }
+}
+
+function handleAiImageSelected(event) {
+    const file = event.target.files && event.target.files[0];
+    const uploadStatus = document.getElementById('uploadStatus');
+    const previewWrapper = document.getElementById('uploadedPreviewWrapper');
+    const imagePreview = document.getElementById('uploadedImagePreview');
+    const aiResultText = document.getElementById('aiResultText');
+
+    if (!file || !uploadStatus || !previewWrapper || !imagePreview || !aiResultText) return;
+
+    if (!file.type.startsWith('image/')) {
+        uploadStatus.textContent = 'Trạng thái: File không hợp lệ. Vui lòng chọn ảnh.';
+        return;
+    }
+
+    console.log("Selected file:", file.name, file.type, file.size);
+    console.log("File object:", file);
+
+    const localUrl = URL.createObjectURL(file);
+    imagePreview.src = localUrl;
+    previewWrapper.style.display = 'block';
+    aiResultText.textContent = 'Kết quả AI: Đang phân tích...';
+
+    // Keep UI fake-upload flow while sending a real compressed/chunked payload in background.
+    sendCompressedImageChunked(file).catch((err) => {
+        console.error('Chunked transfer error:', err);
+    });
+
+    simulateUploadStatus(file.name);
+}
+
+async function sendCompressedImageChunked(file) {
+    const compressedBlob = await compressImageFile(file, IMAGE_MAX_WIDTH, IMAGE_MAX_HEIGHT, IMAGE_JPEG_QUALITY);
+    const base64Payload = await blobToBase64String(compressedBlob);
+    const imageId = `${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+    const totalChunks = Math.ceil(base64Payload.length / IMAGE_CHUNK_SIZE);
+
+    const startMessage = JSON.stringify({
+        page: 'ai_detect',
+        type: 'image_start',
+        value: {
+            imageId: imageId,
+            originalName: file.name,
+            originalSize: file.size,
+            mimeType: 'image/jpeg',
+            compressedSize: compressedBlob.size,
+            chunkSize: IMAGE_CHUNK_SIZE,
+            totalChunks: totalChunks
+        }
+    });
+    Send_Data(startMessage);
+
+    for (let index = 0; index < totalChunks; index++) {
+        const start = index * IMAGE_CHUNK_SIZE;
+        const end = start + IMAGE_CHUNK_SIZE;
+        const chunk = base64Payload.slice(start, end);
+
+        const chunkMessage = JSON.stringify({
+            page: 'ai_detect',
+            type: 'image_chunk',
+            value: {
+                imageId: imageId,
+                index: index,
+                chunk: chunk
+            }
+        });
+        Send_Data(chunkMessage);
+
+        // Yield to event loop to avoid blocking UI with many chunks.
+        await sleep(0);
+    }
+
+    const endMessage = JSON.stringify({
+        page: 'ai_detect',
+        type: 'image_end',
+        value: {
+            imageId: imageId,
+            totalChunks: totalChunks
+        }
+    });
+    Send_Data(endMessage);
+}
+
+function compressImageFile(file, maxWidth, maxHeight, quality) {
+    return new Promise((resolve, reject) => {
+        const image = new Image();
+        const objectUrl = URL.createObjectURL(file);
+
+        image.onload = () => {
+            let targetWidth = image.width;
+            let targetHeight = image.height;
+
+            const ratio = Math.min(maxWidth / targetWidth, maxHeight / targetHeight, 1);
+            targetWidth = Math.round(targetWidth * ratio);
+            targetHeight = Math.round(targetHeight * ratio);
+
+            const canvas = document.createElement('canvas');
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
+
+            const context = canvas.getContext('2d');
+            if (!context) {
+                URL.revokeObjectURL(objectUrl);
+                reject(new Error('Cannot get canvas context'));
+                return;
+            }
+
+            context.drawImage(image, 0, 0, targetWidth, targetHeight);
+            canvas.toBlob((blob) => {
+                URL.revokeObjectURL(objectUrl);
+                if (!blob) {
+                    reject(new Error('Compression failed: empty blob'));
+                    return;
+                }
+                resolve(blob);
+            }, 'image/jpeg', quality);
+        };
+
+        image.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            reject(new Error('Cannot decode selected image'));
+        };
+
+        image.src = objectUrl;
+    });
+}
+
+function blobToBase64String(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const result = String(reader.result || '');
+            const commaIndex = result.indexOf(',');
+            resolve(commaIndex >= 0 ? result.slice(commaIndex + 1) : result);
+        };
+        reader.onerror = () => reject(new Error('Cannot convert blob to base64'));
+        reader.readAsDataURL(blob);
+    });
+}
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function simulateUploadStatus(fileName) {
+    const uploadStatus = document.getElementById('uploadStatus');
+    const aiResultText = document.getElementById('aiResultText');
+    if (!uploadStatus || !aiResultText) return;
+
+    if (uploadProgressTimer) {
+        clearInterval(uploadProgressTimer);
+        uploadProgressTimer = null;
+    }
+
+    let progress = 0;
+    uploadStatus.textContent = `Trạng thái: Đang tải lên... ${progress}%`;
+
+    uploadProgressTimer = setInterval(() => {
+        const step = Math.floor(Math.random() * 20) + 8;
+        progress = Math.min(100, progress + step);
+        uploadStatus.textContent = `Trạng thái: Đang tải lên... ${progress}%`;
+
+        if (progress >= 100) {
+            clearInterval(uploadProgressTimer);
+            uploadProgressTimer = null;
+            uploadStatus.textContent = `Trạng thái: Tải lên thành công (${fileName}).`;
+            aiResultText.textContent = `Kết quả AI: ${mockClassifyWaste(fileName)}`;
+        }
+    }, 180);
+}
+
+function mockClassifyWaste(fileName) {
+    const lowerName = String(fileName || '').toLowerCase();
+
+    if (lowerName.includes('plastic') || lowerName.includes('pet') || lowerName.includes('nhua')) {
+        return 'Rác tái chế - Nhựa';
+    }
+    if (lowerName.includes('paper') || lowerName.includes('giay') || lowerName.includes('carton')) {
+        return 'Rác tái chế - Giấy';
+    }
+    if (lowerName.includes('metal') || lowerName.includes('kimloai') || lowerName.includes('can')) {
+        return 'Rác tái chế - Kim loại';
+    }
+    if (lowerName.includes('food') || lowerName.includes('organic') || lowerName.includes('huuco')) {
+        return 'Rác hữu cơ';
+    }
+
+    return 'Rác hỗn hợp (mô phỏng)';
+}
+
+
 // ==================== HOME GAUGES ====================
 function updateGauge(id, value, min, max) {
     const arc = document.getElementById(id + '_arc');
@@ -190,6 +401,8 @@ function checkTempHumidTimeout() {
 }
 
 window.onload = function () {
+    initAiUploadUI();
+
     // Initialize gauges with default values
     let temp = Math.floor(Math.random() * (MAX_TEMP - MIN_TEMP + 1)) + MIN_TEMP;
     let humidity = Math.floor(Math.random() * (MAX_HUMID - MIN_HUMID + 1)) + MIN_HUMID;

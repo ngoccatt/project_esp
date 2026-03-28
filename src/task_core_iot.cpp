@@ -3,7 +3,7 @@
 #include "global.hpp"
 #include "devices_manager.hpp"
 #include "temp_humid_mon.hpp"
-#include "tinyml.h"
+// #include "tinyml.h"
 #include "wifi_manager.hpp"
 
 #define MAX_CORE_IOT_RECONNECT 10
@@ -160,7 +160,7 @@ void coreIotUploadData()
         // Temperature and humidity shall be send cylicly, so we can wait for a delay.
         xQueueReceive(xTemperatureQueue, &temperature_l, 5 / portTICK_PERIOD_MS);
         xQueueReceive(xHumidityQueue, &humidity_l, 5 / portTICK_PERIOD_MS);
-        xQueueReceive(xAnomalyQueue, &anomaly_l, 5 / portTICK_PERIOD_MS);
+        // xQueueReceive(xAnomalyQueue, &anomaly_l, 5 / portTICK_PERIOD_MS);
 
         coreIotSendData("telemetry", "temperature", String(temperature_l));
         coreIotSendData("telemetry", "humidity", String(humidity_l));
@@ -187,7 +187,7 @@ void taskCoreIot(void *pvParameters)
     wifi_connected = false;
     tempHumidMonQueueReceiverCountInc();
     deviceChangedQueueReceiverCountInc();
-    tinyMLQueueReceiverCountInc();
+    // tinyMLQueueReceiverCountInc();
     static int delayedLoop = 0;
     while (true)
     {
@@ -219,7 +219,7 @@ void taskCoreIot(void *pvParameters)
             }
             else
             {
-                Serial.println("Failed to take semaphore for internet connection");
+                // Serial.println("Failed to take semaphore for internet connection");
             }
             vTaskDelay(5000 / portTICK_PERIOD_MS);
         }

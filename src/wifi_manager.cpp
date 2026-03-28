@@ -137,7 +137,7 @@ void task_run_WiFiManager(void *pvParameters)
         if (reConnectRequired) staTrials = 0;
         if (WiFi.status() != WL_CONNECTED || reConnectRequired)
         {
-            Serial.println("WiFi STA reconnect trial: " + String(staTrials));
+            Serial.println("WiFi STA reconnect trial: " + String(staTrials) + " " + String(currentIP));
             staTrials++;
             if (staTrials > NUM_OF_TRIALS_FOR_STA) {
                 staTrials = 0;
