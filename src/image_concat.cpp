@@ -27,8 +27,9 @@ static bool     s_newImageReceived = false; // Flag to indicate a new image has 
 // -------------------------------------------------------------------
 // STEP 2 helper — JPEGDEC per-block draw callback.
 // JPEGDEC calls this for each decoded MCU block during jpeg.decode().
-// pDraw->pPixels is uint8_t* laid out as R,G,B,R,G,B,... (RGB888).
-// We copy each pixel's 3 bytes into s_pixelBuf at the correct (x,y).
+// With RGB8888 mode, pDraw->pPixels is uint8_t* laid out as 4 bytes per pixel:
+//   byte 0 = B, byte 1 = G, byte 2 = R, byte 3 = 0xFF (little-endian 0xFFRRGGBB)
+// Stride MUST be 4, not 3 — using 3 causes progressive misalignment and R/B swap.
 // -------------------------------------------------------------------
 static int jpegDrawCallback(JPEGDRAW *pDraw) {
     const uint8_t *src = (const uint8_t *)pDraw->pPixels;
@@ -38,10 +39,10 @@ static int jpegDrawCallback(JPEGDRAW *pDraw) {
             int dstY = pDraw->y + row;
             if (dstX < MODEL_INPUT_W && dstY < MODEL_INPUT_H) {
                 int dstBase = (dstY * MODEL_INPUT_W + dstX) * 3;
-                int srcBase = (row  * pDraw->iWidth  + col)  * 3;
-                s_pixelBuf[dstBase + 0] = src[srcBase + 0]; // R
-                s_pixelBuf[dstBase + 1] = src[srcBase + 1]; // G
-                s_pixelBuf[dstBase + 2] = src[srcBase + 2]; // B
+                int srcBase = (row  * pDraw->iWidth  + col)  * 4; // RGB8888 = 4 bytes per pixel
+                s_pixelBuf[dstBase + 0] = src[srcBase + 2]; // R (byte 2 in little-endian 0xFFRRGGBB)
+                s_pixelBuf[dstBase + 1] = src[srcBase + 1]; // G (byte 1)
+                s_pixelBuf[dstBase + 2] = src[srcBase + 0]; // B (byte 0)
             }
         }
     }
@@ -70,6 +71,7 @@ static bool decodeBase64ToJpeg(const String &base64Str, size_t &outLen) {
 // STEP 2: Raw JPEG bytes → RGB888 pixel matrix in s_pixelBuf.
 // Requires the JPEGDEC library (bitbank2/JPEGDEC — see platformio.ini).
 // RGB888 output gives true 8-bit per channel with no precision loss,
+// but, RGB888 will use 4 bytes: byte 0 = B, byte 1 = G, byte 2 = R, byte 3 = 0xFF. we don't need byte 3
 // at the cost of 1.5× more pixel buffer RAM vs RGB565 (still fine on ESP32).
 // -------------------------------------------------------------------
 static bool decodeJpegToPixels(size_t jpegLen) {
