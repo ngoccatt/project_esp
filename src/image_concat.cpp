@@ -22,7 +22,8 @@ static uint8_t  s_pixelBuf[MODEL_INPUT_W * MODEL_INPUT_H * 3];               // 
 static int8_t   s_modelInput[MODEL_INPUT_PIXELS];                             // INT8-quantized pixels fed to model (pixel - 128)
 static int      s_jpegDecodeW = 0;
 static int      s_jpegDecodeH = 0;
-static bool     s_newImageReceived = false; // Flag to indicate a new image has been received and processed
+static bool     s_newImageReceived = false; // Flag to indicate an image has been received, not processed yet
+static bool     s_newImageReady = false; // Flag to indicate a new image has been received and processed
 
 // -------------------------------------------------------------------
 // STEP 2 helper — JPEGDEC per-block draw callback.
@@ -169,7 +170,7 @@ void onImageReassembled(const String &imageId, const String &base64Image) {
     resizeAndNormalize();
 
     // indicate that a new image has been received and processed.
-    s_newImageReceived = true;
+    s_newImageReady = true;
 
     // Step 5 — Feed float tensor into image model and run inference
     // the model is fully prepared, fetch the data = s_modelInput, size = MODEL_INPUT_PIXELS
@@ -209,18 +210,15 @@ void concatenateImageChunks(const String &chunkIndex,
     g_imageTransfer.base64Payload += base64ImageData;
     g_imageTransfer.receivedChunks++;
 
-    if (g_imageTransfer.receivedChunks == g_imageTransfer.expectedChunks) {
-        onImageReassembled(g_imageTransfer.imageId, g_imageTransfer.base64Payload);
-    }
 }
 } // namespace
 
 
 bool getModelInputBuffer(uint8_t *&outBuffer, size_t &outSize) {
-    if (s_newImageReceived) {
+    if (s_newImageReady) {
         outSize = MODEL_INPUT_PIXELS;
         outBuffer = (uint8_t *)s_modelInput; // point caller directly at static buffer — no copy
-        s_newImageReceived = false; // reset the flag after providing the buffer
+        s_newImageReady = false; // reset the flag after providing the buffer
         return true;
     } else {
         return false; // No new image available
@@ -270,9 +268,29 @@ bool imageConcatFinish(const String &imageId) {
 
     // onImageReassembled is already called when the last chunk arrives.
     Serial.printf("Image transfer finished. imageId=%s\n", imageId.c_str());
-    // this only reset the receiving data. processed image is still in s_modelInput for inference.
-    imageConcatReset();
+    s_newImageReceived = true; // Set the flag to indicate a new image has been received
     return true;
+}
+
+void taskProcessImage(void* pvParameters) {
+    // this only reset the receiving data. processed image is still in s_modelInput for inference.
+    while (1)
+    {
+        if (s_newImageReceived && (g_imageTransfer.receivedChunks == g_imageTransfer.expectedChunks)) {
+            
+            int64_t img_proc_start_us = esp_timer_get_time();
+            
+            onImageReassembled(g_imageTransfer.imageId, g_imageTransfer.base64Payload);
+            s_newImageReceived = false; // reset the flag after processing the new image
+            imageConcatReset();
+            
+            int64_t img_proc_elapsed_us = esp_timer_get_time() - img_proc_start_us;
+            Serial.printf("[taskProcessImage] Image processing took %lld ms (%lld us)\n",
+                          img_proc_elapsed_us / 1000, img_proc_elapsed_us);
+        }
+        vTaskDelay(5000 / portTICK_PERIOD_MS);
+    }
+
 }
 
 void imageConcatReset() {

@@ -9,5 +9,6 @@ bool imageConcatFinish(const String &imageId);
 void imageConcatReset();
 
 bool getModelInputBuffer(uint8_t *&outBuffer, size_t &outSize);
+void taskProcessImage(void* pvParameters);
 
 #endif // _IMAGE_CONCAT_HPP_

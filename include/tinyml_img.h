@@ -11,6 +11,7 @@
 #include "tensorflow/lite/micro/system_setup.h"
 #include "tensorflow/lite/schema/schema_generated.h"
 
+void imageDetectionReadyQueueReceiverCountInc();
 
 void setupTinyMLForImage(void* pvParameter);
 // Feed a pre-processed INT8 image tensor into the image classification model
@@ -18,5 +19,7 @@ void setupTinyMLForImage(void* pvParameter);
 // in [H][W][C] order, quantized as (uint8_channel - 128)  (scale=1/128, zp=0),
 // which is equivalent to MobileNet float range [-1.0, +1.0].
 void tinyMLRunImageInference(void* pvParameter);
+
+void getInferenceResult(String& dLabel, float& dScore, int& dTimeMs);
 
 #endif // __TINYML_IMG_H__

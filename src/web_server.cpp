@@ -290,6 +290,10 @@ void Webserver_update()
     static float humidity_l = 0.0;
     static float anomaly_l = 0.0;
     static bool deviceChanged = false;
+    static bool imageDetectionReady_l = false;
+    static String dLabel_l;
+    static float dScore_l;
+    static int dInferTime_l;
     if (!webserver_isrunning)
     {
         return;
@@ -327,6 +331,23 @@ void Webserver_update()
             Webserver_sendata(data);
             deviceChanged = false;
         }
+
+        xQueueReceive(xImageDetectionQueue, &imageDetectionReady_l, 5 / portTICK_PERIOD_MS);
+        if (imageDetectionReady_l) {
+            sendDoc.clear();
+            JsonDocument tempDoc;
+            getInferenceResult(dLabel_l, dScore_l, dInferTime_l);
+
+            sendDoc["page"] = "ai_detect";
+            sendDoc["value"].to<JsonObject>();
+            sendDoc["value"]["label"] = dLabel_l;
+            sendDoc["value"]["score"] = dScore_l;
+            sendDoc["value"]["time"] = dInferTime_l;
+            
+            serializeJson(sendDoc, data);
+            Webserver_sendata(data);
+            imageDetectionReady_l = false;
+        }
     }
 }
 
@@ -334,6 +355,7 @@ void task_run_WebServer(void *pvParameters) {
     tempHumidMonQueueReceiverCountInc();
     deviceChangedQueueReceiverCountInc();
     // tinyMLQueueReceiverCountInc();
+    imageDetectionReadyQueueReceiverCountInc();
     while(true) 
     {
         Webserver_reconnect();

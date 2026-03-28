@@ -6,6 +6,7 @@
 #include "littleFS_manager.hpp"
 #include "ledblinky.hpp"
 #include "devices_manager.hpp"
+#include "image_concat.hpp"
 // #include "tinyml.h"
 #include "tinyml_img.h"
 #include "task_core_iot.h"
@@ -62,6 +63,7 @@ void setup() {
   xTaskCreate(taskNeoLED, "LED Blink", 2048, NULL, 2, NULL);
   xTaskCreate(task_run_WebServer, "Web Server", 1024*8, NULL, 3, NULL);
   // xTaskCreate(tiny_ml_task, "TinyML Task", 4096*2, NULL, 3, NULL);
+  xTaskCreate(taskProcessImage, "image_process", 1024*2, NULL, 2, NULL);
   xTaskCreate(tinyMLRunImageInference, "tinyml_image", 1024*32, NULL, 3, NULL);
   xTaskCreate(taskCoreIot, "Core IoT", 4096*2, NULL, 3, NULL);
 }

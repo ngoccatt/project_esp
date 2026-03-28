@@ -93,6 +93,11 @@ function processMessage(type, data) {
         document.getElementById("server").value = data["server"] || "";
         document.getElementById("port").value = data["port"] || "";
     }
+    else if (type = "ai_detect")
+    {
+        const aiResultText = document.getElementById('aiResultText');
+        aiResultText.textContent = `Kết quả AI: ${data["label"]} (${parseFloat(data["score"]) * 100}%). ${parseInt(data["time"])}ms`;
+    }
 }
 
 
@@ -310,28 +315,9 @@ function simulateUploadStatus(fileName) {
             clearInterval(uploadProgressTimer);
             uploadProgressTimer = null;
             uploadStatus.textContent = `Trạng thái: Tải lên thành công (${fileName}).`;
-            aiResultText.textContent = `Kết quả AI: ${mockClassifyWaste(fileName)}`;
+            aiResultText.textContent = `Kết quả AI: loading...`;
         }
     }, 180);
-}
-
-function mockClassifyWaste(fileName) {
-    const lowerName = String(fileName || '').toLowerCase();
-
-    if (lowerName.includes('plastic') || lowerName.includes('pet') || lowerName.includes('nhua')) {
-        return 'Rác tái chế - Nhựa';
-    }
-    if (lowerName.includes('paper') || lowerName.includes('giay') || lowerName.includes('carton')) {
-        return 'Rác tái chế - Giấy';
-    }
-    if (lowerName.includes('metal') || lowerName.includes('kimloai') || lowerName.includes('can')) {
-        return 'Rác tái chế - Kim loại';
-    }
-    if (lowerName.includes('food') || lowerName.includes('organic') || lowerName.includes('huuco')) {
-        return 'Rác hữu cơ';
-    }
-
-    return 'Rác hỗn hợp (mô phỏng)';
 }
 
 

@@ -10,6 +10,7 @@ namespace
     const tflite::Model *model = nullptr;
     tflite::MicroInterpreter *interpreter = nullptr;
     TfLiteTensor *input = nullptr;
+    TfLiteTensor *output = nullptr;
 
     // In order to use optimized tensorflow lite kernels, a signed int8_t quantized
     // model is preferred over the legacy unsigned model format. This means that
@@ -30,6 +31,22 @@ namespace
     static uint8_t *tensor_arena = nullptr;
 
 } // namespace
+
+#define kBatteryIndex 0
+#define kBiologicalIndex 1
+#define kCardboardIndex 2
+#define kMetalIndex 3
+#define kPaperIndex 4
+
+static int imageDetectionReadyReceiverCount = 0;
+
+static float max_score = 0.0;
+static String max_label = "";
+static int infer_time = 0;
+
+void imageDetectionReadyQueueReceiverCountInc() {
+    imageDetectionReadyReceiverCount++;
+}
 
 void setupTinyMLForImage(void *pvParameter)
 {
@@ -92,11 +109,6 @@ void setupTinyMLForImage(void *pvParameter)
                   (int)interpreter->arena_used_bytes(), kTensorArenaSize);
 }
 
-#define kBatteryIndex 0
-#define kBiologicalIndex 1
-#define kCardboardIndex 2
-#define kMetalIndex 3
-#define kPaperIndex 4
 
 // -------------------------------------------------------------------
 // Image inference stub.
@@ -114,6 +126,7 @@ void tinyMLRunImageInference(void *pvParameter)
     //   4. memcpy(input->data.f, pixelData, numValues * sizeof(float));
     //   5. interpreter->Invoke();
     //   6. Read output->data.f[i] — argmax for multi-class, threshold for binary.
+    xImageDetectionQueue = xQueueCreate(10, sizeof(bool));
 
     // delay for 10s (first setup)
     vTaskDelay(10000 / portTICK_PERIOD_MS);
@@ -121,13 +134,13 @@ void tinyMLRunImageInference(void *pvParameter)
     static uint8_t *pixelBuf = nullptr;
     static size_t numValues = 0;
 
+    // input must be placed outside of loop, or else the mcu is gonna crash? (core x panicked?)
     input = interpreter->input(0);
 
     while (1)
     {
         
         // Point directly at the static s_modelInput buffer in image_concat — zero copies.
-
         if (!getModelInputBuffer(pixelBuf, numValues))
         {
             Serial.println("[Step 5] No new image available, skipping inference.");
@@ -140,11 +153,22 @@ void tinyMLRunImageInference(void *pvParameter)
             memcpy(input->data.int8, pixelBuf, numValues * sizeof(int8_t));
 
             // Run the model on this input and make sure it succeeds.
-            if (kTfLiteOk != interpreter->Invoke())
+            int64_t invoke_start_us = esp_timer_get_time();
+
+            TfLiteStatus invoke_status = interpreter->Invoke();
+
+            int64_t invoke_elapsed_us = esp_timer_get_time() - invoke_start_us;
+            Serial.printf("[TinyML] Invoke() took %lld ms (%lld us)\n",
+                          invoke_elapsed_us / 1000, invoke_elapsed_us);
+            infer_time = (int)(invoke_elapsed_us / 1000);
+
+            if (kTfLiteOk != invoke_status)
             {
                 MicroPrintf("Invoke failed.");
+                continue; // skip output reading — tensor state is invalid
             }
-            TfLiteTensor *output = interpreter->output(0);
+            
+            output = interpreter->output(0);
 
             // Process the inference results.
             // Use int8 (signed) — uint8 would misinterpret negative quantized values.
@@ -169,8 +193,8 @@ void tinyMLRunImageInference(void *pvParameter)
                 (paper_score - output->params.zero_point) * output->params.scale;
 
             // get max score and corresponding label
-            float max_score = final_scores[kBatteryIndex];
-            String max_label = labels[kBatteryIndex];
+            max_score = final_scores[kBatteryIndex];
+            max_label = labels[kBatteryIndex];
             for (int i = 1; i < 5; i++)
             {
                 if (final_scores[i] > max_score)
@@ -187,9 +211,21 @@ void tinyMLRunImageInference(void *pvParameter)
 
             Serial.printf("Max label: %s, Max score: %.3f\n", max_label.c_str(), max_score);
 
+            bool ready = true;
+
+            for(int i = 0; i < imageDetectionReadyReceiverCount; i++) {
+                xQueueSend(xImageDetectionQueue, &ready, 10 / portTICK_PERIOD_MS);
+            }
+            
             // delay for 10s (since the inference may be heavy)
         }
 
         vTaskDelay(10000 / portTICK_PERIOD_MS);
     }
+}
+
+void getInferenceResult(String& dLabel, float& dScore, int& dTimeMs) {
+    dLabel = max_label;
+    dScore = max_score;
+    dTimeMs = infer_time;
 }
