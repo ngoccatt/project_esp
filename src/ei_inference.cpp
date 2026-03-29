@@ -130,7 +130,7 @@ void eiRunImageInference(void *pvParameter)
             // delay for 10s (since the inference may be heavy)
         }
 
-        vTaskDelay(10000 / portTICK_PERIOD_MS);
+        vTaskDelay(5000 / portTICK_PERIOD_MS);
     }
 }
 

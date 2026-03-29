@@ -17,7 +17,7 @@
       "+<edge-impulse-sdk/porting/espressif/ESP-NN/src/**/*.c>",
       "+<edge-impulse-sdk/porting/espressif/ESP-NN/src/**/*.S>",
       "+<edge-impulse-sdk/porting/espressif/esp-dsp/modules/fft/**/*.S>",
-      "+<tflite-model/tflite_learn_929919_6_compiled.cpp>"
+      "+<tflite-model/tflite_learn_943952_6_compiled.cpp>"
     ]
   }
 }

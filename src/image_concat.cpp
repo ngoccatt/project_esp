@@ -174,6 +174,9 @@ void onImageReassembled(const String &imageId, const String &base64Image) {
     Serial.printf("Image reassembled. imageId=%s, base64Len=%u\n",
                   imageId.c_str(), base64Image.length());
 
+    memset(s_modelInput, 0, sizeof(s_modelInput));
+    memset(s_modelInputFloat, 0, sizeof(s_modelInputFloat));
+
     // Step 1 — Base64 string → raw JPEG bytes
     size_t jpegLen = 0;
     if (!decodeBase64ToJpeg(base64Image, jpegLen)) return;
@@ -316,7 +319,7 @@ void taskProcessImage(void* pvParameters) {
             Serial.printf("[taskProcessImage] Image processing took %lld ms (%lld us)\n",
                           img_proc_elapsed_us / 1000, img_proc_elapsed_us);
         }
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
+        vTaskDelay(2500 / portTICK_PERIOD_MS);
     }
 
 }
