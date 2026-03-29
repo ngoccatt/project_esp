@@ -1,0 +1,3 @@
+[submodule "lib/AIoT_Edge_Impulse"]
+	path = lib/AIoT_Edge_Impulse
+	url = https://github.com/namdang76/AIoT_Edge_Impulse.git
