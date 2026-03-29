@@ -1,5 +1,7 @@
-#include "tinyml.h"
 #include "global.hpp"
+#ifdef ENABLE_TINYML
+
+#include "tinyml.h"
 #include "temp_humid_mon.hpp"
 
 int tinyMLReceiverCount = 0;
@@ -108,3 +110,4 @@ void tiny_ml_task(void *pvParameters)
     }
 }
 
+#endif // ENABLE_TINYML

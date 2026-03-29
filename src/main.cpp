@@ -8,7 +8,15 @@
 #include "devices_manager.hpp"
 #include "image_concat.hpp"
 // #include "tinyml.h"
+
+#ifdef ENABLE_EI_CLASSIFIER
+#include "ei_inference.hpp"
+#endif
+
+#ifdef ENABLE_TINYML
 #include "tinyml_img.h"
+#endif
+
 #include "task_core_iot.h"
 #include "global.hpp"
 
@@ -55,7 +63,18 @@ void setup() {
   infoFileSetup();
   // prepare semaphore initialization.
   xBinarySemaphoreInternet = xSemaphoreCreateBinary();
+#ifdef ENABLE_TINYML
   setupTinyMLForImage(NULL);
+  // Pin to Core 1 (APP_CPU); inference is too long to share Core 0 with system tasks
+  xTaskCreatePinnedToCore(tinyMLRunImageInference, "tinyml_image", 1024*32, NULL, 3, NULL, 1);
+#endif
+
+#ifdef ENABLE_EI_CLASSIFIER 
+  eiSetupForImage(NULL);
+  // Pin to Core 1 (APP_CPU); inference is too long to share Core 0 with system tasks
+  xTaskCreatePinnedToCore(eiRunImageInference, "ei_image", 1024*32, NULL, 3, NULL, 1);
+#endif
+
   // Tasks creation
   xTaskCreate(task_run_WiFiManager, "WiFi Manager", 4096, NULL, 2, NULL);
   xTaskCreate(taskMonitorTempHumid, "Temp_Humid", 4096, NULL, 3, NULL);
@@ -64,8 +83,8 @@ void setup() {
   xTaskCreate(task_run_WebServer, "Web Server", 1024*8, NULL, 3, NULL);
   // xTaskCreate(tiny_ml_task, "TinyML Task", 4096*2, NULL, 3, NULL);
   xTaskCreate(taskProcessImage, "image_process", 1024*2, NULL, 2, NULL);
-  xTaskCreate(tinyMLRunImageInference, "tinyml_image", 1024*32, NULL, 3, NULL);
   xTaskCreate(taskCoreIot, "Core IoT", 4096*2, NULL, 3, NULL);
+
 }
 
 void loop() {

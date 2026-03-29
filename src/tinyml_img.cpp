@@ -1,7 +1,9 @@
 #include "global.hpp"
+#ifdef ENABLE_TINYML
 #include "tinyml_img.h"
 #include "garbage_detection_model.h"
 #include "image_concat.hpp"
+#include "esp_task_wdt.h"
 
 // Globals, used for compatibility with Arduino-style sketches.
 namespace
@@ -128,10 +130,14 @@ void tinyMLRunImageInference(void *pvParameter)
     //   6. Read output->data.f[i] — argmax for multi-class, threshold for binary.
     xImageDetectionQueue = xQueueCreate(10, sizeof(bool));
 
+    // this function help remove this task from TWDT (watchdog timer)
+    // also, pin this task to core 1 to avoid blocking system tasks on core 0
+    esp_task_wdt_delete(NULL);
+
     // delay for 10s (first setup)
     vTaskDelay(10000 / portTICK_PERIOD_MS);
 
-    static uint8_t *pixelBuf = nullptr;
+    static int8_t *pixelBuf = nullptr;
     static size_t numValues = 0;
 
     // input must be placed outside of loop, or else the mcu is gonna crash? (core x panicked?)
@@ -141,7 +147,7 @@ void tinyMLRunImageInference(void *pvParameter)
     {
         
         // Point directly at the static s_modelInput buffer in image_concat — zero copies.
-        if (!getModelInputBuffer(pixelBuf, numValues))
+        if (!getModelInputBufferInt(pixelBuf, numValues))
         {
             Serial.println("[Step 5] No new image available, skipping inference.");
         }
@@ -224,8 +230,10 @@ void tinyMLRunImageInference(void *pvParameter)
     }
 }
 
-void getInferenceResult(String& dLabel, float& dScore, int& dTimeMs) {
+void tinyMLGetInferenceResult(String& dLabel, float& dScore, int& dTimeMs) {
     dLabel = max_label;
     dScore = max_score;
     dTimeMs = infer_time;
 }
+
+#endif // ENABLE_TINYML

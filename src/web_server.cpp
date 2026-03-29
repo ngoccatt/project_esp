@@ -6,7 +6,15 @@
 #include "task_core_iot.h"
 #include "temp_humid_mon.hpp"
 // #include "tinyml.h"
+
+#ifdef ENABLE_EI_CLASSIFIER
+#include "ei_inference.hpp"
+#endif
+
+#ifdef ENABLE_TINYML
 #include "tinyml_img.h"
+#endif
+
 #include "image_concat.hpp"
 
 AsyncWebServer server(80);
@@ -291,6 +299,7 @@ void Webserver_update()
     static float anomaly_l = 0.0;
     static bool deviceChanged = false;
     static bool imageDetectionReady_l = false;
+    static bool eiImageDetectionReady_l = false;
     static String dLabel_l;
     static float dScore_l;
     static int dInferTime_l;
@@ -332,11 +341,12 @@ void Webserver_update()
             deviceChanged = false;
         }
 
-        xQueueReceive(xImageDetectionQueue, &imageDetectionReady_l, 5 / portTICK_PERIOD_MS);
+#ifdef ENABLE_TINYML
+        xQueueReceive(xImageDetectionQueue, &imageDetectionReady_l, 1 / portTICK_PERIOD_MS);
         if (imageDetectionReady_l) {
             sendDoc.clear();
             JsonDocument tempDoc;
-            getInferenceResult(dLabel_l, dScore_l, dInferTime_l);
+            tinyMLGetInferenceResult(dLabel_l, dScore_l, dInferTime_l);
 
             sendDoc["page"] = "ai_detect";
             sendDoc["value"].to<JsonObject>();
@@ -348,6 +358,27 @@ void Webserver_update()
             Webserver_sendata(data);
             imageDetectionReady_l = false;
         }
+#endif
+
+#ifdef ENABLE_EI_CLASSIFIER
+        xQueueReceive(xEiImageDetectionQueue, &eiImageDetectionReady_l, 1 / portTICK_PERIOD_MS);
+        if (eiImageDetectionReady_l) {
+            sendDoc.clear();
+            JsonDocument tempDoc;
+            eiGetInferenceResult(dLabel_l, dScore_l, dInferTime_l);
+
+            sendDoc["page"] = "ai_detect";
+            sendDoc["value"].to<JsonObject>();
+            sendDoc["value"]["label"] = dLabel_l;
+            sendDoc["value"]["score"] = dScore_l;
+            sendDoc["value"]["time"] = dInferTime_l;
+            
+            serializeJson(sendDoc, data);
+            Webserver_sendata(data);
+            eiImageDetectionReady_l = false;
+        }
+#endif
+
     }
 }
 
@@ -355,7 +386,12 @@ void task_run_WebServer(void *pvParameters) {
     tempHumidMonQueueReceiverCountInc();
     deviceChangedQueueReceiverCountInc();
     // tinyMLQueueReceiverCountInc();
+#ifdef ENABLE_EI_CLASSIFIER
+    eiImageDetectionReadyQueueReceiverCountInc();
+#endif
+#ifdef ENABLE_TINYML
     imageDetectionReadyQueueReceiverCountInc();
+#endif
     while(true) 
     {
         Webserver_reconnect();

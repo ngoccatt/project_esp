@@ -8,7 +8,8 @@ bool imageConcatAppendChunk(const String &imageId, int index, const String &base
 bool imageConcatFinish(const String &imageId);
 void imageConcatReset();
 
-bool getModelInputBuffer(uint8_t *&outBuffer, size_t &outSize);
+bool getModelInputBufferInt(int8_t *&outBuffer, size_t &outSize);
+bool getModelInputBufferFloat(float *&outBuffer, size_t &outSize);  
 void taskProcessImage(void* pvParameters);
 
 #endif // _IMAGE_CONCAT_HPP_

@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 
+#ifdef ENABLE_TINYML
 #include "dht_anomaly_model.h"
 
 #include <TensorFlowLite_ESP32.h>
@@ -19,4 +20,5 @@ void tiny_ml_task(void *pvParameters);
 // call this function to increase the receiver count.
 void tinyMLQueueReceiverCountInc();
 
-#endif
+#endif // ENABLE_TINYML
+#endif // __TINY_ML__

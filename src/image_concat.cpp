@@ -1,5 +1,4 @@
 #include "image_concat.hpp"
-#include "tinyml_img.h"
 #include <mbedtls/base64.h>
 #include <JPEGDEC.h>
 
@@ -20,15 +19,19 @@ static constexpr size_t JPEG_BUF_MAX = 24 * 1024;
 static uint8_t  s_jpegBuf[JPEG_BUF_MAX];                                    // raw JPEG bytes after base64 decode
 static uint8_t  s_pixelBuf[MODEL_INPUT_W * MODEL_INPUT_H * 3];               // RGB888 pixels from JPEGDEC (3 bytes per pixel)
 static int8_t   s_modelInput[MODEL_INPUT_PIXELS];                             // INT8-quantized pixels fed to model (pixel - 128)
+// Edge Impulse RGB888 signal format: one float per pixel, value = (R<<16 | G<<8 | B) cast to float.
+// Size = W*H entries (not W*H*3 — channels are packed into one uint32 per pixel).
+static float    s_modelInputFloat[MODEL_INPUT_W * MODEL_INPUT_H];             // packed-RGB float pixels for Edge Impulse signal_t
 static int      s_jpegDecodeW = 0;
 static int      s_jpegDecodeH = 0;
 static bool     s_newImageReceived = false; // Flag to indicate an image has been received, not processed yet
-static bool     s_newImageReady = false; // Flag to indicate a new image has been received and processed
+static bool     s_newImageReadyInt   = false; // Set when int8 buffer (TinyML) is ready for consumption
+static bool     s_newImageReadyFloat = false; // Set when float buffer (Edge Impulse) is ready for consumption
 
 // -------------------------------------------------------------------
 // STEP 2 helper — JPEGDEC per-block draw callback.
 // JPEGDEC calls this for each decoded MCU block during jpeg.decode().
-// With RGB8888 mode, pDraw->pPixels is uint8_t* laid out as 4 bytes per pixel:
+// With RGB888 mode, pDraw->pPixels is uint8_t* laid out as 4 bytes per pixel:
 //   byte 0 = B, byte 1 = G, byte 2 = R, byte 3 = 0xFF (little-endian 0xFFRRGGBB)
 // Stride MUST be 4, not 3 — using 3 causes progressive misalignment and R/B swap.
 // -------------------------------------------------------------------
@@ -44,6 +47,7 @@ static int jpegDrawCallback(JPEGDRAW *pDraw) {
                 s_pixelBuf[dstBase + 0] = src[srcBase + 2]; // R (byte 2 in little-endian 0xFFRRGGBB)
                 s_pixelBuf[dstBase + 1] = src[srcBase + 1]; // G (byte 1)
                 s_pixelBuf[dstBase + 2] = src[srcBase + 0]; // B (byte 0)
+                
             }
         }
     }
@@ -113,10 +117,12 @@ static bool decodeJpegToPixels(size_t jpegLen) {
 // this step becomes a straight pixel copy + subtract-128.
 // -------------------------------------------------------------------
 static void resizeAndNormalize() {
-    int srcW = (s_jpegDecodeW < MODEL_INPUT_W) ? s_jpegDecodeW : MODEL_INPUT_W;
-    int srcH = (s_jpegDecodeH < MODEL_INPUT_H) ? s_jpegDecodeH : MODEL_INPUT_H;
-    float scaleX = (float)srcW / MODEL_INPUT_W;
-    float scaleY = (float)srcH / MODEL_INPUT_H;
+    // Scale the full source image into the model input dimensions.
+    // When src == model size: scale = 1.0 (straight copy).
+    // When src < model size: scale < 1.0 (stretch up).
+    // When src > model size: scale > 1.0 (shrink down).
+    float scaleX = (float)s_jpegDecodeW / MODEL_INPUT_W;
+    float scaleY = (float)s_jpegDecodeH / MODEL_INPUT_H;
 
     for (int y = 0; y < MODEL_INPUT_H; y++) {
         for (int x = 0; x < MODEL_INPUT_W; x++) {
@@ -134,6 +140,15 @@ static void resizeAndNormalize() {
             s_modelInput[dstBase + 0] = (int8_t)((int)r - 128);
             s_modelInput[dstBase + 1] = (int8_t)((int)g - 128);
             s_modelInput[dstBase + 2] = (int8_t)((int)b - 128);
+
+            // Edge Impulse RGB888 signal format: one float per pixel, packed as (R<<16|G<<8|B).
+            // Index is pixelIdx = W*Y + X (NOT dstBase which is 3× that — would be OOB).
+            int pixelIdx = y * MODEL_INPUT_W + x;
+            s_modelInputFloat[pixelIdx] = (float)(
+                ((uint32_t)s_modelInput[dstBase + 0] << 16) | // R
+                ((uint32_t)s_modelInput[dstBase + 1] <<  8) | // G
+                ((uint32_t)s_modelInput[dstBase + 2]      )   // B
+            );
         }
     }
     Serial.printf("[Step 3+4] Resized & INT8-quantized: %dx%dx%d ready\n",
@@ -166,11 +181,12 @@ void onImageReassembled(const String &imageId, const String &base64Image) {
     // Step 2 — JPEG bytes → RGB565 pixel matrix
     if (!decodeJpegToPixels(jpegLen)) return;
 
-    // Step 3 + 4 — Resize (nearest-neighbor) + normalize to float [-1, 1]
+    // Step 3 + 4 — Resize (nearest-neighbor) + normalize int8 quantization
     resizeAndNormalize();
 
-    // indicate that a new image has been received and processed.
-    s_newImageReady = true;
+    // Arm both consumer flags — each inference engine clears its own.
+    s_newImageReadyInt   = true;
+    s_newImageReadyFloat = true;
 
     // Step 5 — Feed float tensor into image model and run inference
     // the model is fully prepared, fetch the data = s_modelInput, size = MODEL_INPUT_PIXELS
@@ -214,11 +230,23 @@ void concatenateImageChunks(const String &chunkIndex,
 } // namespace
 
 
-bool getModelInputBuffer(uint8_t *&outBuffer, size_t &outSize) {
-    if (s_newImageReady) {
+bool getModelInputBufferInt(int8_t *&outBuffer, size_t &outSize) {
+    if (s_newImageReadyInt) {
         outSize = MODEL_INPUT_PIXELS;
-        outBuffer = (uint8_t *)s_modelInput; // point caller directly at static buffer — no copy
-        s_newImageReady = false; // reset the flag after providing the buffer
+        outBuffer = (int8_t *)s_modelInput; // point caller directly at static buffer — no copy
+        s_newImageReadyInt = false; // clear only this flag — float path is unaffected
+        return true;
+    } else {
+        return false; // No new image available
+    }
+}
+
+// Edge Impulse expects RGB888 packed into one float per pixel: value = (R<<16 | G<<8 | B).
+bool getModelInputBufferFloat(float *&outBuffer, size_t &outSize) {
+    if (s_newImageReadyFloat) {
+        outSize = MODEL_INPUT_W * MODEL_INPUT_H;
+        outBuffer = s_modelInputFloat; // point caller directly at static buffer — no copy
+        s_newImageReadyFloat = false; // clear only this flag — int8 path is unaffected
         return true;
     } else {
         return false; // No new image available

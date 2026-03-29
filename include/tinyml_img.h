@@ -1,6 +1,8 @@
 #ifndef __TINYML_IMG_H__
 #define __TINYML_IMG_H__
 
+#ifdef ENABLE_TINYML
+
 #include <Arduino.h>
 
 #include <TensorFlowLite_ESP32.h>
@@ -20,6 +22,7 @@ void setupTinyMLForImage(void* pvParameter);
 // which is equivalent to MobileNet float range [-1.0, +1.0].
 void tinyMLRunImageInference(void* pvParameter);
 
-void getInferenceResult(String& dLabel, float& dScore, int& dTimeMs);
+void tinyMLGetInferenceResult(String& dLabel, float& dScore, int& dTimeMs);
 
+#endif // ENABLE_TINYML
 #endif // __TINYML_IMG_H__
