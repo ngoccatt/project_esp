@@ -1,0 +1,23 @@
+,Edge Impulse,,,LiteRT,,
+,Result,Conf,Time,Result,Conf,Time
+battery1,battery ,99.6,211,Battery ,51.9531,6455
+battery2,battery ,98.82,203,Metal ,71.4844,6452
+battery3,biological ,90.234,201,Metal ,81.25,6458
+battery4,biological ,39.06,203,Metal ,50.39,6454
+biological1,biological ,52.3437,203,Biological ,71.484,6452
+biological2,biological ,99.609,206,Biological ,95.703,6461
+biological3,biological ,54.296,203,Metal ,70.312,6461
+biological4,biological ,93.3594,204,Biological ,80.078,6452
+cardboard1,cardboard ,94.921,202,Cardboard ,98.828,6447
+cardboard2,cardboard ,68.359,201,Battery ,32.812,6454
+cardboard3,cardboard ,88.281,204,Cardboard ,60.1562,6448
+cardboard4,biological ,99.218,209,Cardboard ,42.968,6454
+metal1,metal ,98.046,202,Metal ,99.21,6454
+metal2,metal ,88.28,204,Metal ,96.4844,6454
+metal3,metal ,85.5469,202,Metal ,97.265,6457
+metal4,metal ,99.6094,203,Metal ,99.6094,6454
+paper1,paper ,99.609,202,Cardboard ,67.968,6449
+paper2,paper ,99.609,202,Paper ,54.68,6447
+paper3,cardboard ,82.031,201,Paper ,87.89,6449
+paper4,paper ,95.312,202,Paper ,42.187,6446
+,,,,,,

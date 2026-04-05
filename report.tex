@@ -1,0 +1,1089 @@
+\documentclass[12pt,a4paper]{article}
+
+% ─── Encoding & Fonts ────────────────────────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage[T5]{fontenc}
+\usepackage[vietnamese]{babel}
+
+% ─── Layout ──────────────────────────────────────────────────────────────────
+\usepackage[top=2.5cm, bottom=2.5cm, left=3cm, right=2.5cm]{geometry}
+\usepackage{setspace}
+\onehalfspacing
+
+% ─── Graphics & Diagrams ─────────────────────────────────────────────────────
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, fit, calc, backgrounds}
+\usepackage{float}
+
+% ─── Tables ──────────────────────────────────────────────────────────────────
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{multirow}
+\usepackage{array}
+
+% ─── Code Listings ───────────────────────────────────────────────────────────
+\usepackage{listings}
+\usepackage{xcolor}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.97,0.97,0.97}
+
+\lstdefinestyle{cppstyle}{
+    backgroundcolor=\color{backcolour},
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{blue}\bfseries,
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2,
+    frame=single,
+    framerule=0.4pt,
+    xleftmargin=15pt,
+}
+\lstdefinestyle{jsstyle}{
+    style=cppstyle,
+    language=Java,
+}
+\lstset{style=cppstyle, language=C++}
+
+% ─── Misc ─────────────────────────────────────────────────────────────────────
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{amsmath}
+\usepackage{caption}
+\usepackage{subcaption}
+
+% ─── TikZ Styles ──────────────────────────────────────────────────────────────
+\tikzset{
+  block/.style={
+    rectangle, rounded corners=4pt, draw=black, thick,
+    minimum width=2.6cm, minimum height=0.9cm,
+    align=center, font=\small, fill=blue!10
+  },
+  blockW/.style={block, minimum width=4cm},
+  decision/.style={
+    diamond, draw=black, thick, fill=yellow!20,
+    text centered, font=\small, aspect=2.5,
+    inner sep=0pt
+  },
+  arrow/.style={->, >=Stealth, thick},
+  dashedarrow/.style={->, >=Stealth, thick, dashed},
+  groupbox/.style={draw=gray, dashed, rounded corners, inner sep=8pt},
+  label_s/.style={font=\scriptsize, text=gray},
+}
+
+% ─── Document ─────────────────────────────────────────────────────────────────
+\begin{document}
+
+% ── Trang bìa ─────────────────────────────────────────────────────────────────
+\begin{titlepage}
+  \centering
+  \vspace*{1.5cm}
+  {\Large \textbf{BÁO CÁO THỰC HIỆN}}\\[0.4cm]
+  {\large \textbf{CHẠY THỬ MODEL AI TRÊN THIẾT BỊ ESP32}}\\[0.3cm]
+  \rule{\linewidth}{0.8pt}\\[2cm]
+  {\normalsize
+    \textbf{Nền tảng:} ESP32-S3 (N16R8) -- PlatformIO / Arduino Framework\\[0.4cm]
+    \textbf{Model ứng dụng:} Phân loại rác thải (Garbage Classification)\\[0.4cm]
+    \textbf{Các lớp phân loại:} Battery · Biological · Cardboard · Metal · Paper\\[0.4cm]
+    \textbf{Thư viện suy diễn:}
+      \texttt{TensorFlowLite\_ESP32} (LiteRT) \& \texttt{AIoT\_Edge\_Impulse}
+  }\\[2.5cm]
+  {\small \today}
+  \vfill
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% ═══════════════════════════════════════════════════════════════════════════════
+\section{Tổng quan hệ thống}
+% ═══════════════════════════════════════════════════════════════════════════════
+
+Hệ thống thực hiện chu trình từ đầu đến cuối: người dùng chọn ảnh trên trình duyệt, ảnh được nén và chia nhỏ rồi truyền tới ESP32 thông qua WebSocket; vi điều khiển giải nén, chuyển đổi định dạng pixel, sau đó chạy mô hình AI để phân loại và trả kết quả về trang web.
+
+Mục tiêu thiết kế chính:
+\begin{itemize}
+  \item Không yêu cầu camera gắn thêm -- ảnh được gửi từ thiết bị di động / máy tính.
+  \item Tận dụng bộ nhớ PSRAM 8\,MB (SPIRAM) trên ESP32-S3-N16R8 để chứa tensor arena.
+  \item Hỗ trợ hai back-end suy diễn có thể chuyển đổi qua biến dịch: \texttt{TFLite Micro} và \texttt{Edge Impulse EON}.
+\end{itemize}
+
+\subsection*{Sơ đồ luồng tổng thể}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=0.55cm and 1.5cm]
+
+  % ── Browser side ──────────────────────────────────────────
+  \node[blockW, fill=green!15]  (sel)   {Select image (Browser)};
+  \node[blockW, fill=green!15, below=of sel] (comp)  {Compress JPEG 96$\times$96};
+  \node[blockW, fill=green!15, below=of comp] (b64)   {Base64 encode};
+  \node[blockW, fill=green!15, below=of b64] (chunk) {Split into chunks 1024\,B};
+  \node[blockW, fill=green!15, below=of chunk] (ws)    {Send via WebSocket};
+
+  % ── ESP32 side ────────────────────────────────────────────
+  \node[blockW, fill=blue!15,  right=3.5cm of sel]    (wsrx)  {Receive WebSocket};
+  \node[blockW, fill=blue!15,  below=of wsrx]   (concat){Reassemble chunks → Base64};
+  \node[blockW, fill=blue!15,  below=of concat] (b64d)  {Base64 decode → JPEG};
+  \node[blockW, fill=blue!15,  below=of b64d]   (jpegd) {JPEG decode → RGB888};
+  \node[blockW, fill=blue!15,  below=of jpegd]  (quant) {Resize + Quantize INT8};
+  \node[blockW, fill=orange!20,below=of quant]  (infer) {AI model inference};
+  \node[blockW, fill=orange!20,below=of infer]  (result){Send result via WebSocket};
+
+  % ── Arrows browser ────────────────────────────────────────
+  \draw[arrow] (sel)   -- (comp);
+  \draw[arrow] (comp)  -- (b64);
+  \draw[arrow] (b64)   -- (chunk);
+  \draw[arrow] (chunk) -- (ws);
+
+  % ── Arrows ESP32 ──────────────────────────────────────────
+  \draw[arrow] (wsrx)  -- (concat);
+  \draw[arrow] (concat)-- (b64d);
+  \draw[arrow] (b64d)  -- (jpegd);
+  \draw[arrow] (jpegd) -- (quant);
+  \draw[arrow] (quant) -- (infer);
+  \draw[arrow] (infer) -- (result);
+
+  % ── Link across ───────────────────────────────────────────
+  \draw[arrow, dashed] (ws) -- node[above, font=\tiny]{WebSocket} (wsrx);
+  \draw[arrow, dashed] (result) to[bend left=40]
+        node[right, font=\tiny]{Result} (sel);
+
+  % ── Group boxes ───────────────────────────────────────────
+  \begin{scope}[on background layer]
+    \node[groupbox, label={[label_s]above:Browser},
+          fit=(sel)(ws)] {};
+    \node[groupbox, label={[label_s]above:ESP32},
+          fit=(wsrx)(result)] {};
+  \end{scope}
+\end{tikzpicture}
+\caption{End-to-end processing flow from browser to ESP32}
+\end{figure}
+
+% ═══════════════════════════════════════════════════════════════════════════════
+\section{Cập nhật Web Server -- Truyền ảnh qua WebSocket}
+% ═══════════════════════════════════════════════════════════════════════════════
+
+\subsection{Giao thức truyền ảnh}
+
+Web server trên ESP32 sử dụng thư viện \texttt{ESPAsyncWebServer} với điểm cuối WebSocket tại địa chỉ \texttt{/ws}. Trước khi tích hợp tính năng AI, WebSocket chỉ xử lý các trang \texttt{setting} và \texttt{device} (điều khiển relay, cấu hình WiFi). Để hỗ trợ truyền ảnh, một trang mới \texttt{ai\_detect} được thêm vào với ba kiểu thông điệp:
+
+\begin{table}[H]
+\centering
+\caption{Các kiểu thông điệp WebSocket cho trang \texttt{ai\_detect}}
+\begin{tabularx}{\linewidth}{@{}l l X@{}}
+\toprule
+\textbf{type} & \textbf{Chiều} & \textbf{Mô tả} \\
+\midrule
+\texttt{image\_start} & Browser → ESP32 & Báo bắt đầu truyền, kèm \texttt{imageId} và \texttt{totalChunks} \\
+\texttt{image\_chunk} & Browser → ESP32 & Một phần dữ liệu Base64, kèm \texttt{index} và \texttt{chunk} \\
+\texttt{image\_end}   & Browser → ESP32 & Báo kết thúc, ESP32 bắt đầu xử lý ảnh \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Đoạn xử lý trong \texttt{web\_server.cpp}:
+
+\begin{lstlisting}[caption={Xử lý trang \texttt{ai\_detect} trong \texttt{requestProcessing()}}]
+if (page == "ai_detect") {
+    if (type == "image_start") {
+        String imageId = recvDoc["value"]["imageId"].as<String>();
+        int totalChunks = recvDoc["value"]["totalChunks"].as<int>();
+        imageConcatStart(imageId, totalChunks);
+        return;
+    }
+    if (type == "image_chunk") {
+        String imageId = recvDoc["value"]["imageId"].as<String>();
+        int index      = recvDoc["value"]["index"].as<int>();
+        String chunk   = recvDoc["value"]["chunk"].as<String>();
+        imageConcatAppendChunk(imageId, index, chunk);
+        return;
+    }
+    if (type == "image_end") {
+        String imageId = recvDoc["value"]["imageId"].as<String>();
+        imageConcatFinish(imageId);
+        return;
+    }
+}
+\end{lstlisting}
+
+\subsection{Lý do chia chunk và xử lý phía trình duyệt}
+
+\subsubsection*{Tại sao phải chia nhỏ dữ liệu?}
+
+Giao thức WebSocket không giới hạn độ lớn của một khung dữ liệu về mặt lý thuyết, nhưng trên thực tế tồn tại hai giới hạn quan trọng:
+
+\begin{enumerate}
+  \item \textbf{Bộ nhớ stack của ESP32:} Thư viện \texttt{ESPAsyncWebServer} xử lý dữ liệu WebSocket trong callback ngắt. Việc nhận một chuỗi Base64 có kích thước 5--10\,KB trong một lần cấp phát tĩnh gây mất ổn định heap trên ESP32 (heap fragmentation), đặc biệt khi có nhiều task FreeRTOS đang chạy đồng thời.
+  \item \textbf{Giới hạn kích thước frame:} \texttt{ESPAsyncWebServer} xử lý WebSocket message theo từng frame. Nếu trình duyệt gửi một message quá lớn, thư viện có thể phân mảnh nội bộ và gây lỗi parsing.
+\end{enumerate}
+
+Giải pháp là phía JavaScript cắt chuỗi Base64 thành các đoạn (chunk) 1024\,byte, gửi tuần tự:
+
+\begin{lstlisting}[language=Java, caption={Gửi ảnh theo chunk trong \texttt{script.js}}]
+const IMAGE_CHUNK_SIZE = 1024;
+
+async function sendCompressedImageChunked(file) {
+    const compressedBlob = await compressImageFile(
+                               file, IMAGE_MAX_WIDTH, IMAGE_MAX_HEIGHT,
+                               IMAGE_JPEG_QUALITY);          // 96x96, quality 0.65
+    const base64Payload = await blobToBase64String(compressedBlob);
+    const imageId       = `${Date.now()}_${Math.random().toString(16).slice(2,8)}`;
+    const totalChunks   = Math.ceil(base64Payload.length / IMAGE_CHUNK_SIZE);
+
+    // 1. Send start message
+    Send_Data(JSON.stringify({ page:'ai_detect', type:'image_start',
+        value:{ imageId, totalChunks } }));
+
+    // 2. Send each chunk
+    for (let i = 0; i < totalChunks; i++) {
+        const chunk = base64Payload.slice(i * IMAGE_CHUNK_SIZE,
+                                          (i+1) * IMAGE_CHUNK_SIZE);
+        Send_Data(JSON.stringify({ page:'ai_detect', type:'image_chunk',
+            value:{ imageId, index: i, chunk } }));
+        await sleep(0); // yield to event loop -- avoid blocking UI
+    }
+
+    // 3. Send end message
+    Send_Data(JSON.stringify({ page:'ai_detect', type:'image_end',
+        value:{ imageId, totalChunks } }));
+}
+\end{lstlisting}
+
+\subsubsection*{Nén ảnh trước khi gửi}
+
+Trước khi chia chunk, ảnh gốc được thu nhỏ về kích thước đầu vào của mô hình (96×96 pixel) và nén thành JPEG với chất lượng 0.65 ngay tại trình duyệt. Điều này giảm kích thước dữ liệu cần truyền từ hàng chục KB (ảnh gốc) xuống còn khoảng 3--6\,KB (JPEG 96×96), tương đương chỉ 3--6 chunk.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=0.5cm and 1.2cm]
+  \node[block] (raw)    {Original image\\(any size)};
+  \node[block, right=of raw]  (canvas) {Canvas resize\\96$\times$96};
+  \node[block, right=of canvas] (jpeg)   {JPEG compress\\quality=0.65};
+  \node[block, right=of jpeg]  (b64)    {Base64\\encode};
+  \node[block, right=of b64, fill=orange!20]   (split)  {Split into\\N chunks × 1024\,B};
+
+  \draw[arrow] (raw) -- (canvas);
+  \draw[arrow] (canvas) -- (jpeg);
+  \draw[arrow] (jpeg)   -- (b64);
+  \draw[arrow] (b64)    -- (split);
+
+  % estimated sizes
+  \node[label_s, below=0.15of raw]    {~100--500\,KB};
+  \node[label_s, below=0.15of canvas] {\textasciitilde{}same};
+  \node[label_s, below=0.15of jpeg]   {~3--6\,KB};
+  \node[label_s, below=0.15of b64]    {~4--8\,KB};
+  \node[label_s, below=0.15of split]  {4--8 chunk};
+\end{tikzpicture}
+\caption{Browser-side image processing pipeline before transmission}
+\end{figure}
+
+% ═══════════════════════════════════════════════════════════════════════════════
+\section{Module ghép ảnh và chuyển đổi Pixel (\texttt{image\_concat})}
+% ═══════════════════════════════════════════════════════════════════════════════
+
+Module \texttt{image\_concat.cpp / .hpp} đảm nhận toàn bộ pipeline xử lý trung gian: từ khi nhận chunk đầu tiên cho đến khi tensor đầu vào cho mô hình AI đã sẵn sàng.
+
+\subsection{Sơ đồ pipeline xử lý ảnh}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=0.6cm]
+  \node[blockW, fill=green!15]  (s0) {Receive Base64 chunks};
+  \node[blockW, below=of s0]    (s1) {\textbf{Step 1:} Base64 decode\\$\rightarrow$ raw JPEG bytes};
+  \node[blockW, below=of s1]    (s2) {\textbf{Step 2:} JPEG decode\\$\rightarrow$ RGB888 pixel matrix};
+  \node[blockW, below=of s2]    (s34){
+    \textbf{Step 3+4:} Resize (nearest-neighbor)\\
+    + Quantize INT8 (pixel $-$ 128)
+  };
+
+  \node[blockW, fill=orange!20, below left=0.7cm and 0.8cm of s34]
+    (oint8) {Buffer INT8\\(\texttt{s\_modelInput})};
+  \node[blockW, fill=orange!20, below right=0.7cm and 0.8cm of s34]
+    (ofloat){Buffer Float\\(\texttt{s\_modelInputFloat})};
+
+  \node[blockW, fill=red!15, below=of oint8]  (tflite){TFLite Micro\\(TensorFlowLite\_ESP32)};
+  \node[blockW, fill=red!15, below=of ofloat] (ei)    {Edge Impulse EON\\(AIoT\_Edge\_Impulse)};
+
+  \draw[arrow] (s0)  -- (s1);
+  \draw[arrow] (s1)  -- (s2);
+  \draw[arrow] (s2)  -- (s34);
+  \draw[arrow] (s34) -- (oint8);
+  \draw[arrow] (s34) -- (ofloat);
+  \draw[arrow] (oint8)  -- node[left,  font=\tiny]{\texttt{int8\_t[96×96×3]}}  (tflite);
+  \draw[arrow] (ofloat) -- node[right, font=\tiny]{\texttt{float[96×96]}} (ei);
+
+  \begin{scope}[on background layer]
+    \node[groupbox, label={[label_s, xshift=1.2cm]right:Two independent consumers},
+          fit=(oint8)(ofloat)(tflite)(ei)] {};
+  \end{scope}
+\end{tikzpicture}
+\caption{Image processing pipeline in the \texttt{image\_concat} module}
+\end{figure}
+
+\subsection{Bước 1 -- Ghép chunk và giải mã Base64}
+
+Khi \texttt{imageConcatAppendChunk()} được gọi, module nối chuỗi chunk vào một \texttt{String} dự trữ (\texttt{base64Payload}). Sau khi nhận đủ \texttt{totalChunks} chunk và hàm \texttt{imageConcatFinish()} được gọi, toàn bộ chuỗi Base64 được giải mã thành byte JPEG thô bằng hàm \texttt{mbedtls\_base64\_decode()} -- thư viện mbedTLS đã được tích hợp sẵn trong ESP32 Arduino framework, không cần cài thêm.
+
+Buffer trung gian \texttt{s\_jpegBuf} được khai báo tĩnh với kích thước 24\,KB -- đủ để chứa JPEG 96×96 ở chất lượng 0.65.
+
+\subsection{Bước 2 -- Giải mã JPEG thành pixel RGB888}
+
+Thư viện \textbf{JPEGDEC} (bitbank2) được dùng để giải mã JPEG hoàn toàn trong RAM mà không cần filesystem. Chế độ \texttt{RGB8888} được chọn (thay vì RGB565) để giữ đầy đủ 8\,bit mỗi kênh màu, tránh sai số làm tròn khi quantize sau này.
+
+Điểm quan trọng: JPEGDEC trả về pixel theo định dạng little-endian \texttt{0xFFRRGGBB}, tức là thứ tự byte trong bộ nhớ là [\texttt{B, G, R, 0xFF}] -- \textbf{4 byte} mỗi pixel. Hàm callback \texttt{jpegDrawCallback()} phải đọc đúng thứ tự này:
+
+\begin{lstlisting}[caption={Callback JPEGDEC -- chú ý thứ tự byte RGB8888}]
+static int jpegDrawCallback(JPEGDRAW *pDraw) {
+    const uint8_t *src = (const uint8_t *)pDraw->pPixels;
+    for (int row = 0; row < pDraw->iHeight; row++) {
+        for (int col = 0; col < pDraw->iWidth; col++) {
+            int dstBase = (dstY * MODEL_INPUT_W + dstX) * 3;
+            int srcBase = (row  * pDraw->iWidth  + col)  * 4; // 4 byte/pixel!
+            s_pixelBuf[dstBase + 0] = src[srcBase + 2]; // R
+            s_pixelBuf[dstBase + 1] = src[srcBase + 1]; // G
+            s_pixelBuf[dstBase + 2] = src[srcBase + 0]; // B
+        }
+    }
+    return 1;
+}
+\end{lstlisting}
+
+\subsection{Bước 3+4 -- Resize và Quantize INT8}
+
+Vì phía trình duyệt đã resize ảnh về đúng 96×96 trước khi gửi, bước resize phía ESP32 thực chất là một phép copy thẳng (tỷ lệ = 1.0). Tuy nhiên code vẫn giữ logic nearest-neighbor để an toàn khi nhận ảnh có kích thước khác.
+
+Quantize từ \texttt{uint8} [0, 255] sang \texttt{int8} [-128, 127]:
+\[
+  x_{\text{int8}} = x_{\text{uint8}} - 128
+\]
+Cách này tương đương chuẩn hóa MobileNet float $x' = x/127.5 - 1.0$ với scale $= 1/128$, zero\_point $= 0$, và tránh phải cấp phát thêm buffer float.
+
+Đồng thời, buffer float cho Edge Impulse cũng được điền đồng thời tại đây theo định dạng \emph{packed-RGB}:
+\[
+  v_{\text{float}} = \text{(R} \ll 16) \mid \text{(G} \ll 8) \mid \text{B}
+\]
+trong đó R, G, B là giá trị INT8 ngay vừa tính.
+
+\subsection{Quản lý buffer đôi và cờ trạng thái}
+
+Hai cờ tĩnh \texttt{s\_newImageReadyInt} và \texttt{s\_newImageReadyFloat} được dùng để thông báo cho hai task suy diễn độc lập. Mỗi task chỉ xoá cờ của riêng mình, không ảnh hưởng đến task còn lại. Điều này cho phép cả TFLite Micro và Edge Impulse cùng tiêu thụ cùng một ảnh mà không cần copy buffer.
+
+% ═══════════════════════════════════════════════════════════════════════════════
+\section{Suy diễn với TensorFlow Lite Micro -- Thư viện \texttt{TensorFlowLite\_ESP32}}
+% ═══════════════════════════════════════════════════════════════════════════════
+
+\subsection{Giới thiệu thư viện}
+
+\texttt{TensorFlowLite\_ESP32} (trong \texttt{lib/TensorFlowLite\_ESP32/}) là một port của TensorFlow Lite for Microcontrollers (TFLM) dành riêng cho ESP32 Arduino framework, được đóng gói dưới dạng thư viện PlatformIO/Arduino. Phiên bản trong dự án này dựa trên codebase TFLM cũ (pre-LiteRT), sử dụng namespace \texttt{tflite::} với các header quen thuộc như \texttt{tensorflow/lite/micro/micro\_interpreter.h}.
+
+\subsection{Chuyển sang LiteRT (phiên bản mới)}
+
+Kể từ năm 2024, Google đổi tên TensorFlow Lite thành \textbf{LiteRT} và tái cấu trúc toàn bộ kho mã nguồn tại \url{https://github.com/tensorflow/tflite-micro}. Thư viện mới không còn được ship sẵn dưới dạng file nén cho Arduino; thay vào đó, người dùng phải chạy script Python để sinh ra cây thư mục nguồn phù hợp với target (xem file \texttt{ESP32\_PROJECT\_GENERATION.md}).
+
+Điểm khác biệt chính giữa hai phiên bản:
+
+\begin{table}[H]
+\centering
+\caption{So sánh \texttt{TensorFlowLite\_ESP32} (cũ) và LiteRT (mới)}
+\begin{tabularx}{\linewidth}{@{}l X X@{}}
+\toprule
+\textbf{Khía cạnh} & \textbf{TensorFlowLite\_ESP32 (cũ)} & \textbf{LiteRT / tflite-micro (mới)} \\
+\midrule
+Phân phối & Thư viện PlatformIO/Arduino đóng gói sẵn & Sinh từ script Python, đặt trong \texttt{lib/} \\
+Phiên bản schema & Cố định (cũ) & Cập nhật thường xuyên \\
+Phần mở rộng file & Đã đổi \texttt{.cc} → \texttt{.cpp} sẵn & Cần flag \texttt{--rename\_cc\_to\_cpp} khi sinh \\
+Namespace API & \texttt{tflite::} & \texttt{tflite::} (giữ nguyên) \\
+Tích hợp & Thêm vào \texttt{lib\_deps} & Copy vào \texttt{lib/} + thêm include path \\
+Hỗ trợ PSRAM & Cần patch thủ công & Hỗ trợ tốt, arena có thể cấp phát từ PSRAM \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Quy trình sinh thư viện LiteRT cho ESP32 (tóm tắt từ \texttt{ESP32\_PROJECT\_GENERATION.md}):
+
+\begin{lstlisting}[language=bash, caption={Sinh cây thư mục LiteRT cho ESP32}]
+# Step 1: Download third-party dependencies (flatbuffers, kissfft, ruy, gemmlowp)
+cd tflite-micro
+make -f tensorflow/lite/micro/tools/make/Makefile third_party_downloads
+
+# Step 2: Generate source tree
+python3 tensorflow/lite/micro/tools/project_generation/create_tflm_tree.py \
+  --rename_cc_to_cpp \
+  --examples hello_world \
+  /path/to/output/tflm_esp32
+
+# Step 3: Copy into PlatformIO project
+cp -r tflm_esp32/ lib/TensorFlowLite_ESP32/
+\end{lstlisting}
+
+\subsection{Cấu hình \texttt{platformio.ini}}
+
+\begin{lstlisting}[caption={Cấu hình PlatformIO cho back-end TFLite Micro}]
+[env:tinyml]
+build_flags =
+    ${common.build_flags}
+    -D ENABLE_TINYML
+    -I lib/TensorFlowLite_ESP32/src/third_party/flatbuffers/include
+    -I lib/TensorFlowLite_ESP32/src/third_party/gemmlowp
+    -I lib/TensorFlowLite_ESP32/src/third_party/ruy
+    -I lib/TensorFlowLite_ESP32/src/third_party/kissfft
+lib_deps =
+    ${common.lib_deps}
+    TensorFlowLite_ESP32
+lib_ignore = AIoT_Edge_Impulse   ; avoid TFLite symbol conflict
+\end{lstlisting}
+
+\subsection{Luồng khởi tạo và suy diễn}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=0.55cm]
+  \node[blockW] (init)   {\texttt{tflite::InitializeTarget()}};
+  \node[blockW, below=of init]  (getm)   {\texttt{tflite::GetModel(garbage\_detection\_model)}};
+  \node[blockW, below=of getm]  (ops)    {\texttt{MicroMutableOpResolver} \\register 8 ops};
+  \node[blockW, below=of ops]   (arena)  {Allocate tensor arena 512\,KB\\from PSRAM (\texttt{MALLOC\_CAP\_SPIRAM})};
+  \node[blockW, below=of arena] (interp) {\texttt{MicroInterpreter::AllocateTensors()}};
+  \node[blockW, below=of interp, fill=green!15] (wait)   {Wait for flag \texttt{s\_newImageReadyInt}};
+  \node[blockW, below=of wait]  (cpy)    {\texttt{memcpy(input->data.int8, pixelBuf, ...)}};
+  \node[blockW, below=of cpy]   (inv)    {\texttt{interpreter->Invoke()}};
+  \node[blockW, below=of inv]   (out)    {Read INT8 output, dequantize,\\send result via WebSocket};
+  \draw[arrow] (init)   -- (getm);
+  \draw[arrow] (getm)   -- (ops);
+  \draw[arrow] (ops)    -- (arena);
+  \draw[arrow] (arena)  -- (interp);
+  \draw[arrow] (interp) -- (wait);
+  \draw[arrow] (wait)   -- (cpy);
+  \draw[arrow] (cpy)    -- (inv);
+  \draw[arrow] (inv)    -- (out);
+  \draw[arrow] (out.south) -- ++(0,-0.35) -| ([xshift=-1.6cm]wait.west)
+               -- (wait.west);
+
+  \begin{scope}[on background layer]
+    \node[groupbox, label={[label_s]right:Setup (runs once)},
+          fit=(init)(interp)] {};
+    \node[groupbox, label={[label_s]right:Loop (FreeRTOS task)},
+          fit=(wait)(out)] {};
+  \end{scope}
+\end{tikzpicture}
+\caption{TFLite Micro initialization and inference flow}
+\end{figure}
+
+\subsection{Vấn đề tensor arena và PSRAM}
+
+Model phân loại rác (MobileNetV2 96×96) có lớp Conv2D đầu tiên tạo ra activation tensor 96×96×32 = 288\,KB. Bộ nhớ SRAM nội bộ của ESP32-S3 chỉ khoảng 520\,KB tổng cộng, không thể chứa đủ các tensor trung gian. Do đó, tensor arena được cấp phát 512\,KB từ PSRAM:
+
+\begin{lstlisting}[caption={Cấp phát tensor arena từ PSRAM}]
+tensor_arena = (uint8_t *)heap_caps_malloc(
+    kTensorArenaSize,
+    MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT
+);
+\end{lstlisting}
+
+\subsection{Giải quantize kết quả đầu ra}
+
+Model đầu ra là INT8 với scale và zero\_point được lưu trong \texttt{output->params}:
+
+\begin{lstlisting}[caption={Giải quantize giá trị INT8 ra xác suất float}]
+float score = (output->data.int8[i] - output->params.zero_point)
+                * output->params.scale;
+\end{lstlisting}
+
+Kết quả là xác suất [0.0, 1.0] cho mỗi trong 5 nhãn: \textit{Battery, Biological, Cardboard, Metal, Paper}.
+
+% ═══════════════════════════════════════════════════════════════════════════════
+\section{Suy diễn với Edge Impulse -- Thư viện \texttt{AIoT\_Edge\_Impulse}}
+% ═══════════════════════════════════════════════════════════════════════════════
+
+\subsection{Giới thiệu thư viện}
+
+\texttt{AIoT\_Edge\_Impulse} (trong \texttt{lib/AIoT\_Edge\_Impulse/}) là một \emph{C++ deployment library} được sinh tự động bởi nền tảng \textbf{Edge Impulse Studio}. Thư viện đóng gói cả pipeline DSP, model (\emph{EON compiled} -- mã C++ sinh từ TFLite), và metadata của impulse vào một package duy nhất. Người dùng chỉ cần gọi hàm \texttt{run\_classifier()} để thực hiện toàn bộ chuỗi DSP + suy diễn.
+
+So với \texttt{TensorFlowLite\_ESP32}, thư viện Edge Impulse có những điểm khác biệt chính:
+
+\begin{table}[H]
+\centering
+\caption{So sánh hai back-end suy diễn}
+\begin{tabularx}{\linewidth}{@{}l X X@{}}
+\toprule
+\textbf{Khía cạnh} & \textbf{TensorFlowLite\_ESP32} & \textbf{AIoT\_Edge\_Impulse} \\
+\midrule
+Nguồn gốc & Port thủ công từ TFLM & Sinh tự động từ Edge Impulse Studio \\
+API chính & \texttt{interpreter->Invoke()} & \texttt{run\_classifier(\&signal, \&result)} \\
+Quản lý tensor & Người dùng tự quản lý & Nội bộ tự động (qua \texttt{ei\_impulse\_handle\_t}) \\
+Định dạng đầu vào & INT8 thô \texttt{[H][W][C]} & Float packed RGB \texttt{(R<<16|G<<8|B)} \\
+Tích hợp DSP & Không & Có (resize, normalization tự động) \\
+Model lưu trữ & File \texttt{.h} (flat byte array) & EON compiled \texttt{tflite\_learn\_943952\_6\_compiled.cpp} \\
+Kết quả đầu ra & Mảng INT8 cần giải quantize thủ công & Struct \texttt{ei\_impulse\_result\_t} với xác suất float sẵn \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Thư viện trong dự án tương ứng với project \textbf{NamDang\_AIoT} (ID: 943952) trên Edge Impulse Studio, với các tham số:
+\begin{itemize}
+  \item Đầu vào: 96×96 RGB (9216 pixel, \texttt{EI\_CLASSIFIER\_RAW\_SAMPLE\_COUNT = 9216})
+  \item DSP block: Image -- Fit Shortest
+  \item Số lớp đầu ra: 5 (\texttt{EI\_CLASSIFIER\_NN\_OUTPUT\_COUNT = 5})
+  \item Model: TFLite INT8 EON compiled
+\end{itemize}
+
+\subsection{Các thay đổi để tương thích với dự án}
+
+Việc tích hợp thư viện Edge Impulse vào dự án PlatformIO không phải là plug-and-play. Một số thay đổi đã được thực hiện:
+
+\subsubsection*{1. Tách biệt với TFLite backend để tránh xung đột}
+
+Cả \texttt{TensorFlowLite\_ESP32} lẫn \texttt{AIoT\_Edge\_Impulse} đều đóng gói bản sao của TFLite Micro. Nếu cả hai cùng được biên dịch sẽ sinh lỗi \emph{multiple definition}. Giải pháp là dùng macro \texttt{\#ifdef} cùng với \texttt{lib\_ignore} trong \texttt{platformio.ini}:
+
+\begin{lstlisting}[caption={\texttt{platformio.ini} -- loại trừ thư viện xung đột}]
+[env:ei_classifier]
+build_flags =
+    ${common.build_flags}
+    -D ENABLE_EI_CLASSIFIER
+lib_deps =
+    ${common.lib_deps}
+    ; AIoT_Edge_Impulse is used from local lib/ folder
+lib_ignore = TensorFlowLite_ESP32  ; avoid TFLite symbol conflict
+
+[env:tinyml]
+lib_ignore = AIoT_Edge_Impulse
+\end{lstlisting}
+
+Trong mã nguồn C++:
+\begin{lstlisting}[caption={Guard macro để tách biệt hai back-end}]
+// ei_inference.cpp
+#ifdef ENABLE_EI_CLASSIFIER
+  #include "edge-impulse-sdk/classifier/ei_run_classifier.h"
+  // ... all Edge Impulse inference logic
+#endif
+
+// tinyml_img.cpp  
+#ifdef ENABLE_TINYML
+  #include <TensorFlowLite_ESP32.h>
+  // ... all TFLite Micro inference logic
+#endif
+\end{lstlisting}
+
+\subsubsection*{2. Định dạng đầu vào signal\_t}
+
+Edge Impulse sử dụng callback \texttt{signal\_t} để cung cấp dữ liệu pixel theo yêu cầu:
+
+\begin{lstlisting}[caption={Cài đặt signal\_t cho Edge Impulse}]
+int raw_feature_get_data(size_t offset, size_t length, float *out_ptr) {
+    memcpy(out_ptr, pixelBuf + offset, length * sizeof(float));
+    return 0;
+}
+
+signal_t features_signal;
+features_signal.total_length = EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE;
+features_signal.get_data     = &raw_feature_get_data;
+
+EI_IMPULSE_ERROR res = run_classifier(&features_signal, &result, false);
+\end{lstlisting}
+
+Buffer \texttt{pixelBuf} trỏ thẳng vào \texttt{s\_modelInputFloat} từ module \texttt{image\_concat} -- không cần sao chép dữ liệu.
+
+\subsubsection*{3. Kiểm tra kích thước đầu vào}
+
+Trước khi gọi \texttt{run\_classifier()}, cần kiểm tra số lượng pixel khớp với metadata của model:
+
+\begin{lstlisting}[caption={Kiểm tra kích thước đầu vào}]
+if (numValues != EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE) {
+    Serial.printf("Mismatch: expected=%d got=%d\n",
+                  EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE, (int)numValues);
+    continue;
+}
+\end{lstlisting}
+
+\texttt{EI\_CLASSIFIER\_DSP\_INPUT\_FRAME\_SIZE = 9216} = 96×96 (một float packed-RGB cho mỗi pixel).
+
+\subsubsection*{4. Watchdog Timer}
+
+Suy diễn model ảnh float32 trên ESP32 có thể mất 20--40 giây. Task FreeRTOS phải tự xoá khỏi Watchdog Timer để tránh bị reset:
+
+\begin{lstlisting}[caption={Tắt Watchdog cho task suy diễn nặng}]
+#include "esp_task_wdt.h"
+// ...
+esp_task_wdt_delete(NULL); // call before the while(1) loop
+\end{lstlisting}
+
+\subsection{Luồng suy diễn Edge Impulse}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=0.55cm]
+  \node[blockW] (init)  {\texttt{eiSetupForImage()} -- initialize SDK};
+  \node[blockW, below=of init, fill=green!15]  (wait)  {Wait for flag \texttt{s\_newImageReadyFloat}};
+  \node[blockW, below=of wait]  (ptr)   {Get pointer \texttt{pixelBuf}\\from \texttt{getModelInputBufferFloat()}};
+  \node[blockW, below=of ptr]   (sig)   {Set up \texttt{signal\_t}\\(\texttt{total\_length}, \texttt{get\_data})};
+  \node[blockW, below=of sig]   (run)   {\texttt{run\_classifier(\&signal, \&result)}};
+  \node[blockW, below=of run]   (parse) {Read \texttt{result.classification[i].value}\\Find highest-scoring label};
+  \node[blockW, below=of parse] (send)  {Send result via WebSocket};
+
+  \draw[arrow] (init) -- (wait);
+  \draw[arrow] (wait) -- (ptr);
+  \draw[arrow] (ptr)  -- (sig);
+  \draw[arrow] (sig)  -- (run);
+  \draw[arrow] (run)  -- (parse);
+  \draw[arrow] (parse)-- (send);
+  \draw[arrow] (send.south) -- ++(0,-0.3) -| ([xshift=-1.6cm]wait.west)
+               -- (wait.west);
+\end{tikzpicture}
+\caption{Edge Impulse inference flow in FreeRTOS task}
+\end{figure}
+
+\subsection{Kết quả đầu ra}
+
+\begin{lstlisting}[caption={Đọc kết quả từ \texttt{ei\_impulse\_result\_t}}]
+// Print timing
+ei_printf("DSP: %d ms | Inference: %d ms\n",
+    result.timing.dsp, result.timing.classification);
+
+// Find label with highest probability
+for (int i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++) {
+    if (result.classification[i].value > max_score) {
+        max_score = result.classification[i].value;
+        max_label = ei_classifier_inferencing_categories[i];
+    }
+}
+\end{lstlisting}
+
+Kết quả được gửi qua WebSocket về trình duyệt dưới dạng JSON:
+\begin{lstlisting}[language=Java, caption={JSON kết quả trả về trình duyệt}]
+{
+  "page": "ai_detect",
+  "value": {
+    "label": "cardboard",
+    "score": "0.924",
+    "time":  "1350"
+  }
+}
+\end{lstlisting}
+
+% ═══════════════════════════════════════════════════════════════════════════════
+\section{Tổng kết}
+% ═══════════════════════════════════════════════════════════════════════════════
+
+Dự án đã hiện thực thành công hai back-end suy diễn AI trên ESP32-S3 với các điểm nổi bật:
+
+\begin{enumerate}
+  \item \textbf{Truyền ảnh qua WebSocket chunked:} Giải quyết giới hạn bộ nhớ ESP32 khi nhận dữ liệu lớn. Protocol ba bước (start/chunk/end) đảm bảo tính toàn vẹn dữ liệu và dễ mở rộng.
+
+  \item \textbf{Pipeline xử lý ảnh trung tâm:} Module \texttt{image\_concat} đảm nhận toàn bộ quá trình từ Base64 đến tensor đầu vào, cung cấp hai buffer độc lập (INT8 và float) cho hai back-end tiêu thụ mà không cần sao chép dữ liệu.
+
+  \item \textbf{TFLite Micro (LiteRT):} Phù hợp khi cần kiểm soát hoàn toàn pipeline và model format. Đòi hỏi quản lý tensor, ops thủ công và cần nâng cấp thư viện từ script Python của tflite-micro.
+
+  \item \textbf{Edge Impulse EON:} API đơn giản hơn, bao gồm DSP tích hợp và kết quả float sẵn. Model được sinh tự động từ Edge Impulse Studio, dễ cập nhật khi train lại.
+\end{enumerate}
+
+Cả hai back-end được tách biệt hoàn toàn qua macro biên dịch, có thể chuyển đổi bằng cách thay giá trị \texttt{default\_envs} trong \texttt{platformio.ini}.
+
+% ═══════════════════════════════════════════════════════════════════════════════
+\section{Đánh giá hiệu năng thực tế trên ESP32}
+% ═══════════════════════════════════════════════════════════════════════════════
+
+\subsection{Thiết lập kiểm thử}
+
+Bộ dữ liệu kiểm thử gồm \textbf{20 ảnh} (4 ảnh mỗi lớp) thuộc 5 lớp phân loại rác: \textit{Battery, Biological, Cardboard, Metal, Paper}. Mỗi ảnh được nén về 96$\times$96 JPEG tại trình duyệt rồi gửi qua WebSocket đến ESP32-S3. Hai back-end chạy độc lập trên cùng thiết bị và cùng ảnh đầu vào.
+
+\textit{Lưu ý:} Kết quả của Edge Impulse dưới đây là sau khi sửa lỗi packed-RGB trong hàm \texttt{resizeAndNormalize()} (Module \texttt{image\_concat}). Lần kiểm thử đầu tiên (trước khi sửa) cho accuracy chỉ 45\% do dữ liệu pixel bị mã hoá sai.
+
+% ─── Raw results table ────────────────────────────────────────────────────────
+\subsection{Kết quả thô}
+
+\begin{table}[H]
+\centering
+\caption{Kết quả phân loại thô của từng mẫu kiểm thử}
+\small
+\begin{tabularx}{\linewidth}{@{}l l >{\centering}p{1.6cm} >{\centering}p{1.1cm} l >{\centering}p{1.6cm} >{\centering\arraybackslash}p{1.1cm}@{}}
+\toprule
+\multirow{2}{*}{\textbf{Mẫu}} &
+\multicolumn{3}{c}{\textbf{Edge Impulse (EON)}} &
+\multicolumn{3}{c}{\textbf{LiteRT (TFLite Micro)}} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}
+ & Dự đoán & Conf (\%) & Time (ms) & Dự đoán & Conf (\%) & Time (ms) \\
+\midrule
+battery1   & \textbf{battery}    & 99.60  & 211 & \textbf{Battery}    & 51.95 & 6455 \\
+battery2   & \textbf{battery}    & 98.82  & 203 & Metal               & 71.48 & 6452 \\
+battery3   & biological          & 90.234 & 201 & Metal               & 81.25 & 6458 \\
+battery4   & biological          & 39.06  & 203 & Metal               & 50.39 & 6454 \\
+\midrule
+biological1 & \textbf{biological} & 52.34 & 203 & \textbf{Biological} & 71.48 & 6452 \\
+biological2 & \textbf{biological} & 99.61 & 206 & \textbf{Biological} & 95.70 & 6461 \\
+biological3 & \textbf{biological} & 54.30 & 203 & Metal               & 70.31 & 6461 \\
+biological4 & \textbf{biological} & 93.36 & 204 & \textbf{Biological} & 80.08 & 6452 \\
+\midrule
+cardboard1  & \textbf{cardboard}  & 94.92 & 202 & \textbf{Cardboard}  & 98.83 & 6447 \\
+cardboard2  & \textbf{cardboard}  & 68.36 & 201 & Battery             & 32.81 & 6454 \\
+cardboard3  & \textbf{cardboard}  & 88.28 & 204 & \textbf{Cardboard}  & 60.16 & 6448 \\
+cardboard4  & biological          & 99.22 & 209 & \textbf{Cardboard}  & 42.97 & 6454 \\
+\midrule
+metal1      & \textbf{metal}      & 98.05 & 202 & \textbf{Metal}      & 99.21 & 6454 \\
+metal2      & \textbf{metal}      & 88.28 & 204 & \textbf{Metal}      & 96.48 & 6454 \\
+metal3      & \textbf{metal}      & 85.55 & 202 & \textbf{Metal}      & 97.27 & 6457 \\
+metal4      & \textbf{metal}      & 99.61 & 203 & \textbf{Metal}      & 99.61 & 6454 \\
+\midrule
+paper1      & \textbf{paper}      & 99.61 & 202 & Cardboard           & 67.97 & 6449 \\
+paper2      & \textbf{paper}      & 99.61 & 202 & \textbf{Paper}      & 54.68 & 6447 \\
+paper3      & cardboard           & 82.03 & 201 & \textbf{Paper}      & 87.89 & 6449 \\
+paper4      & \textbf{paper}      & 95.31 & 202 & \textbf{Paper}      & 42.19 & 6446 \\
+\midrule
+\textbf{Avg time (ms)} & & & \textbf{203.4} & & & \textbf{6452.9} \\
+\textbf{Accuracy} & \multicolumn{3}{c}{\textbf{16/20 = 80.0\%}} &
+                    \multicolumn{3}{c}{\textbf{14/20 = 70.0\%}} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Các ô in đậm biểu thị dự đoán \textbf{đúng} với nhãn thật.
+
+% ─── Confusion matrices ───────────────────────────────────────────────────────
+\subsection{Ma trận nhầm lẫn (Confusion Matrix)}
+
+\begin{table}[H]
+\centering
+\caption{Confusion matrix -- Edge Impulse EON (hàng = nhãn thật, cột = dự đoán)}
+\begin{tabular}{@{}l|ccccc|c@{}}
+\toprule
+\textbf{True \textbackslash\ Pred} & \textit{battery} & \textit{biological} & \textit{cardboard} & \textit{metal} & \textit{paper} & \textbf{Total} \\
+\midrule
+battery     & \textbf{2} & 2 & 0 & 0 & 0 & 4 \\
+biological  & 0 & \textbf{4} & 0 & 0 & 0 & 4 \\
+cardboard   & 0 & 1 & \textbf{3} & 0 & 0 & 4 \\
+metal       & 0 & 0 & 0 & \textbf{4} & 0 & 4 \\
+paper       & 0 & 0 & 1 & 0 & \textbf{3} & 4 \\
+\midrule
+\textbf{Total pred} & 2 & 7 & 4 & 4 & 3 & 20 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Confusion matrix -- LiteRT / TFLite Micro (hàng = nhãn thật, cột = dự đoán)}
+\begin{tabular}{@{}l|ccccc|c@{}}
+\toprule
+\textbf{True \textbackslash\ Pred} & \textit{battery} & \textit{biological} & \textit{cardboard} & \textit{metal} & \textit{paper} & \textbf{Total} \\
+\midrule
+battery     & \textbf{1} & 0 & 0 & 3 & 0 & 4 \\
+biological  & 0 & \textbf{3} & 0 & 1 & 0 & 4 \\
+cardboard   & 1 & 0 & \textbf{3} & 0 & 0 & 4 \\
+metal       & 0 & 0 & 0 & \textbf{4} & 0 & 4 \\
+paper       & 0 & 0 & 1 & 0 & \textbf{3} & 4 \\
+\midrule
+\textbf{Total pred} & 2 & 3 & 4 & 8 & 3 & 20 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ─── Per-class metrics ────────────────────────────────────────────────────────
+\subsection{Chỉ số đánh giá theo lớp}
+
+Precision, Recall và F1-score được tính theo công thức chuẩn:
+\[
+  \text{Precision}_c = \frac{TP_c}{TP_c + FP_c}, \quad
+  \text{Recall}_c    = \frac{TP_c}{TP_c + FN_c}, \quad
+  \text{F1}_c        = \frac{2 \cdot P_c \cdot R_c}{P_c + R_c}
+\]
+
+\begin{table}[H]
+\centering
+\caption{Chỉ số per-class -- Edge Impulse EON (sau khi sửa lỗi pixel buffer)}
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+\textbf{Lớp} & \textbf{TP} & \textbf{FP} & \textbf{FN} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} \\
+\midrule
+battery    & 2 & 0 & 2 & 1.000 & 0.500 & 0.667 \\
+biological & 4 & 3 & 0 & 0.571 & 1.000 & 0.727 \\
+cardboard  & 3 & 1 & 1 & 0.750 & 0.750 & 0.750 \\
+metal      & 4 & 0 & 0 & 1.000 & 1.000 & 1.000 \\
+paper      & 3 & 0 & 1 & 1.000 & 0.750 & 0.857 \\
+\midrule
+\textbf{Macro avg} & & & & \textbf{0.864} & \textbf{0.800} & \textbf{0.800} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Chỉ số per-class -- LiteRT / TFLite Micro}
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+\textbf{Lớp} & \textbf{TP} & \textbf{FP} & \textbf{FN} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} \\
+\midrule
+battery    & 1 & 1 & 3 & 0.500 & 0.250 & 0.333 \\
+biological & 3 & 0 & 1 & 1.000 & 0.750 & 0.857 \\
+cardboard  & 3 & 1 & 1 & 0.750 & 0.750 & 0.750 \\
+metal      & 4 & 4 & 0 & 0.500 & 1.000 & 0.667 \\
+paper      & 3 & 0 & 1 & 1.000 & 0.750 & 0.857 \\
+\midrule
+\textbf{Macro avg} & & & & \textbf{0.750} & \textbf{0.700} & \textbf{0.693} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ─── Summary ──────────────────────────────────────────────────────────────────
+\begin{table}[H]
+\centering
+\caption{So sánh tổng hợp hai back-end}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Chỉ số} & \textbf{Edge Impulse EON} & \textbf{LiteRT (TFLite Micro)} \\
+\midrule
+Accuracy         & \textbf{80.0\%} & 70.0\% \\
+Macro Precision  & \textbf{0.864}  & 0.750 \\
+Macro Recall     & \textbf{0.800}  & 0.700 \\
+Macro F1         & \textbf{0.800}  & 0.693 \\
+Avg Inference    & \textbf{203.4\,ms} & 6452.9\,ms \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ─── Analysis ─────────────────────────────────────────────────────────────────
+\subsection{Phân tích kết quả}
+
+\subsubsection*{Tác động của việc sửa lỗi pixel buffer}
+
+Trước khi sửa lỗi packed-RGB trong \texttt{image\_concat.cpp}, Edge Impulse chỉ đạt accuracy \textbf{45\%}. Sau khi sửa, accuracy tăng lên \textbf{80\%}, vượt LiteRT (70\%). Điều này chứng minh rằng lỗi không nằm ở model hay thư viện -- toàn bộ dữ liệu pixel gửi vào Edge Impulse bị sai định dạng do \texttt{int8\_t} bị sign-extend khi cast sang \texttt{uint32\_t}, phá hỏng giá trị kênh màu R và G trong mỗi pixel packed-RGB.
+
+\subsubsection*{Độ chính xác tổng thể}
+
+Sau khi sửa lỗi, Edge Impulse EON trở thành back-end \textbf{vượt trội cả hai chiều}: accuracy cao hơn (80\% vs 70\%) \emph{và} thời gian suy diễn nhanh hơn \textbf{32 lần} (203\,ms vs 6453\,ms). Điều này cho thấy EON compilation không chỉ tối ưu tốc độ mà còn giữ đúng chất lượng model khi dữ liệu đầu vào đúng định dạng.
+
+\subsubsection*{Phân tích theo lớp -- Edge Impulse}
+
+\begin{itemize}
+  \item \textbf{Metal đạt F1 = 1.000}: 4/4 mẫu được nhận diện chính xác với confidence rất cao (85--99\%), không có false positive. Đây là lớp dễ nhất cho EI -- kết cấu bề mặt kim loại phẳng bóng tạo ra đặc trưng ảnh nhất quán.
+
+  \item \textbf{Paper đạt F1 = 0.857 và Precision = 1.000}: 3/4 mẫu đúng, không có mẫu nào bị nhầm thành paper (FP = 0). Một mẫu (paper3) bị nhầm thành cardboard -- cả hai đều là vật liệu phẳng màu trắng/nâu nhạt, khó phân biệt ở độ phân giải 96$\times$96.
+
+  \item \textbf{Biological là lớp có FP cao nhất (FP = 3)}: cả hai mẫu battery3 và battery4 \emph{lẫn} cardboard4 đều bị nhầm thành biological. Nhìn vào confidence: battery3 (90.2\%), battery4 (39.1\%), cardboard4 (99.2\%). Đặc biệt, cardboard4 bị nhầm với confidence rất cao -- đây có thể là ảnh chụp cardboard bị ướt/bẩn, có màu nâu sũng nước tương đồng với vật liệu hữu cơ.
+
+  \item \textbf{Battery có Recall = 0.500 (2/4)}: battery3 và battery4 bị nhầm thành biological. Nhiều khả năng đây là các viên pin tiểu/AA nằm trong môi trường có nền lá cây hoặc rác hữu cơ, khiến đặc trưng nền ảnh lấn át đặc trưng của pin.
+\end{itemize}
+
+\subsubsection*{Phân tích theo lớp -- LiteRT}
+
+\begin{itemize}
+  \item \textbf{Metal đạt Recall = 1.000} (4/4 đúng) với confidence rất cao (96--99\%), tuy nhiên Precision chỉ 0.500 vì toàn bộ 3 mẫu battery bị nhầm thành Metal (FP = 3 trên tổng 8 dự đoán Metal). Lỗi nhầm lẫn battery--metal là điểm yếu cốt lõi của back-end này.
+
+  \item \textbf{Battery có Recall = 0.250 (1/4)}: battery2, battery3, battery4 đều bị nhầm thành Metal. Đây là hệ quả của việc model học đặc trưng bề mặt kim loại bóng từ dữ liệu train, làm mờ ranh giới giữa pin (cylindrical metal) và kim loại phẳng.
+
+  \item \textbf{Biological, Paper và Cardboard} đạt F1 từ 0.750 đến 0.857 -- tốt hơn nhiều so với Battery, cho thấy model phân biệt tốt các vật liệu phi kim loại.
+
+  \item \textbf{Paper1 bị nhầm thành Cardboard (confidence 67.97\%)}: đây là lỗi tương tự EI -- hai lớp có bề mặt phẳng, màu sắc gần nhau. Confidence thấp (67\%) gợi ý model cũng không hoàn toàn chắc chắn.
+\end{itemize}
+
+\subsubsection*{So sánh hai back-end}
+
+Edge Impulse EON vượt LiteRT cả về accuracy lẫn tốc độ sau khi sửa lỗi. Điểm yếu còn lại của EI là lớp biological bị overpredicted (Precision = 0.571). Điểm yếu của LiteRT là cặp battery--metal bị lẫn lộn nghiêm trọng. Hai back-end có cùng lỗi nhầm giữa paper và cardboard -- đây là vấn đề của dữ liệu/model, không phải implementation.
+
+\subsubsection*{Ảnh hưởng của thời gian suy diễn}
+
+Với 203\,ms, Edge Impulse hoàn toàn đủ cho real-time (dưới 1 giây). Thời gian 6.45 giây của LiteRT không phù hợp cho phản hồi tức thời nhưng có thể chấp nhận cho IoT phân loại rác không yêu cầu real-time. Để tối ưu, có thể dùng model nhỏ hơn (MobileNetV1, EfficientNet-Lite0) hoặc bật CMSIS-NN kernels trên ARM Cortex-M.
+
+\subsubsection*{Giới hạn của thử nghiệm}
+
+Bộ kiểm thử chỉ gồm 20 mẫu (4 mỗi lớp), nên mỗi sai lệch ảnh hưởng 25 điểm phần trăm đến metric. Kết quả mang tính tham khảo; cần ít nhất 50--100 mẫu/lớp để đánh giá tin cậy hơn.
+
+\end{document}
+
+\begin{table}[H]
+\centering
+\caption{Kết quả phân loại thô của từng mẫu kiểm thử}
+\small
+\begin{tabularx}{\linewidth}{@{}l l >{\centering}p{1.6cm} >{\centering}p{1.1cm} l >{\centering}p{1.6cm} >{\centering\arraybackslash}p{1.1cm}@{}}
+\toprule
+\multirow{2}{*}{\textbf{Mẫu}} &
+\multicolumn{3}{c}{\textbf{Edge Impulse (EON)}} &
+\multicolumn{3}{c}{\textbf{LiteRT (TFLite Micro)}} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}
+ & Dự đoán & Conf (\%) & Time (ms) & Dự đoán & Conf (\%) & Time (ms) \\
+\midrule
+battery1   & \textbf{battery}    & 99.60 & 201 & \textbf{Battery}    & 51.95 & 6455 \\
+battery2   & \textbf{battery}    & 80.07 & 203 & Metal               & 71.48 & 6452 \\
+battery3   & biological          & 67.57 & 203 & Metal               & 81.25 & 6458 \\
+battery4   & paper               & 83.98 & 203 & Metal               & 50.39 & 6454 \\
+\midrule
+biological1 & cardboard          & 66.40 & 201 & \textbf{Biological} & 71.48 & 6452 \\
+biological2 & \textbf{biological} & 99.61 & 206 & \textbf{Biological} & 95.70 & 6461 \\
+biological3 & \textbf{biological} & 98.43 & 203 & Metal               & 70.31 & 6461 \\
+biological4 & \textbf{biological} & 96.48 & 204 & \textbf{Biological} & 80.08 & 6452 \\
+\midrule
+cardboard1  & battery            & 71.48 & 202 & \textbf{Cardboard}  & 98.83 & 6447 \\
+cardboard2  & battery            & 99.21 & 205 & Battery             & 32.81 & 6454 \\
+cardboard3  & \textbf{cardboard} & 99.61 & 203 & \textbf{Cardboard}  & 60.16 & 6448 \\
+cardboard4  & paper              & 71.48 & 202 & \textbf{Cardboard}  & 42.97 & 6454 \\
+\midrule
+metal1      & battery            & 83.98 & 202 & \textbf{Metal}      & 99.21 & 6454 \\
+metal2      & paper              & 85.55 & 202 & \textbf{Metal}      & 96.48 & 6454 \\
+metal3      & paper              & 85.55 & 202 & \textbf{Metal}      & 97.27 & 6457 \\
+metal4      & \textbf{metal}     & 66.02 & 201 & \textbf{Metal}      & 99.61 & 6454 \\
+\midrule
+paper1      & \textbf{paper}     & 99.61 & 202 & Cardboard           & 67.97 & 6449 \\
+paper2      & battery            & 45.70 & 202 & \textbf{Paper}      & 54.68 & 6447 \\
+paper3      & biological         & 55.08 & 204 & \textbf{Paper}      & 87.89 & 6449 \\
+paper4      & \textbf{paper}     & 94.53 & 202 & \textbf{Paper}      & 42.19 & 6446 \\
+\midrule
+\textbf{Avg time (ms)} & & & \textbf{202.7} & & & \textbf{6452.9} \\
+\textbf{Accuracy} & \multicolumn{3}{c}{\textbf{9/20 = 45.0\%}} &
+                    \multicolumn{3}{c}{\textbf{14/20 = 70.0\%}} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Các ô in đậm biểu thị dự đoán \textbf{đúng} với nhãn thật.
+
+% ─── Confusion matrices ───────────────────────────────────────────────────────
+\subsection{Ma trận nhầm lẫn (Confusion Matrix)}
+
+\begin{table}[H]
+\centering
+\caption{Confusion matrix -- Edge Impulse EON (hàng = nhãn thật, cột = dự đoán)}
+\begin{tabular}{@{}l|ccccc|c@{}}
+\toprule
+\textbf{True \textbackslash\ Pred} & \textit{battery} & \textit{biological} & \textit{cardboard} & \textit{metal} & \textit{paper} & \textbf{Total} \\
+\midrule
+battery     & \textbf{2} & 1 & 0 & 0 & 1 & 4 \\
+biological  & 0 & \textbf{3} & 1 & 0 & 0 & 4 \\
+cardboard   & 2 & 0 & \textbf{1} & 0 & 1 & 4 \\
+metal       & 1 & 0 & 0 & \textbf{1} & 2 & 4 \\
+paper       & 1 & 1 & 0 & 0 & \textbf{2} & 4 \\
+\midrule
+\textbf{Total pred} & 6 & 5 & 2 & 1 & 6 & 20 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Confusion matrix -- LiteRT / TFLite Micro (hàng = nhãn thật, cột = dự đoán)}
+\begin{tabular}{@{}l|ccccc|c@{}}
+\toprule
+\textbf{True \textbackslash\ Pred} & \textit{battery} & \textit{biological} & \textit{cardboard} & \textit{metal} & \textit{paper} & \textbf{Total} \\
+\midrule
+battery     & \textbf{1} & 0 & 0 & 3 & 0 & 4 \\
+biological  & 0 & \textbf{3} & 0 & 1 & 0 & 4 \\
+cardboard   & 1 & 0 & \textbf{3} & 0 & 0 & 4 \\
+metal       & 0 & 0 & 0 & \textbf{4} & 0 & 4 \\
+paper       & 0 & 0 & 1 & 0 & \textbf{3} & 4 \\
+\midrule
+\textbf{Total pred} & 2 & 3 & 4 & 8 & 3 & 20 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ─── Per-class metrics ────────────────────────────────────────────────────────
+\subsection{Chỉ số đánh giá theo lớp}
+
+Precision, Recall và F1-score được tính theo công thức chuẩn:
+\[
+  \text{Precision}_c = \frac{TP_c}{TP_c + FP_c}, \quad
+  \text{Recall}_c    = \frac{TP_c}{TP_c + FN_c}, \quad
+  \text{F1}_c        = \frac{2 \cdot P_c \cdot R_c}{P_c + R_c}
+\]
+
+\begin{table}[H]
+\centering
+\caption{Chỉ số per-class -- Edge Impulse EON}
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+\textbf{Lớp} & \textbf{TP} & \textbf{FP} & \textbf{FN} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} \\
+\midrule
+battery    & 2 & 4 & 2 & 0.333 & 0.500 & 0.400 \\
+biological & 3 & 2 & 1 & 0.600 & 0.750 & 0.667 \\
+cardboard  & 1 & 1 & 3 & 0.500 & 0.250 & 0.333 \\
+metal      & 1 & 0 & 3 & 1.000 & 0.250 & 0.400 \\
+paper      & 2 & 4 & 2 & 0.333 & 0.500 & 0.400 \\
+\midrule
+\textbf{Macro avg} & & & & \textbf{0.553} & \textbf{0.450} & \textbf{0.440} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Chỉ số per-class -- LiteRT / TFLite Micro}
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+\textbf{Lớp} & \textbf{TP} & \textbf{FP} & \textbf{FN} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} \\
+\midrule
+battery    & 1 & 1 & 3 & 0.500 & 0.250 & 0.333 \\
+biological & 3 & 0 & 1 & 1.000 & 0.750 & 0.857 \\
+cardboard  & 3 & 1 & 1 & 0.750 & 0.750 & 0.750 \\
+metal      & 4 & 4 & 0 & 0.500 & 1.000 & 0.667 \\
+paper      & 3 & 0 & 1 & 1.000 & 0.750 & 0.857 \\
+\midrule
+\textbf{Macro avg} & & & & \textbf{0.750} & \textbf{0.700} & \textbf{0.693} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ─── Summary ──────────────────────────────────────────────────────────────────
+\begin{table}[H]
+\centering
+\caption{So sánh tổng hợp hai back-end}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Chỉ số} & \textbf{Edge Impulse EON} & \textbf{LiteRT (TFLite Micro)} \\
+\midrule
+Accuracy         & 45.0\%  & \textbf{70.0\%} \\
+Macro Precision  & 0.553   & \textbf{0.750} \\
+Macro Recall     & 0.450   & \textbf{0.700} \\
+Macro F1         & 0.440   & \textbf{0.693} \\
+Avg Inference    & \textbf{202.7\,ms} & 6452.9\,ms \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ─── Analysis ─────────────────────────────────────────────────────────────────
+\subsection{Phân tích kết quả}
+
+\subsubsection*{Độ chính xác tổng thể}
+
+LiteRT đạt accuracy \textbf{70\%} so với chỉ \textbf{45\%} của Edge Impulse EON trên cùng bộ ảnh kiểm thử. Tuy nhiên, LiteRT cần thời gian suy diễn trung bình \textbf{6452.9\,ms} -- chậm hơn khoảng \textbf{32 lần} so với Edge Impulse (202.7\,ms). Sự đánh đổi này xuất phát từ kiến trúc model và cách biên dịch khác nhau:
+
+\begin{itemize}
+  \item \textbf{Edge Impulse EON} biên dịch toàn bộ model thành mã C++ tĩnh (EON compilation), loại bỏ overhead của interpreter. Điều này cho tốc độ rất cao nhưng kết quả cho thấy chất lượng model trên tập kiểm thử này còn hạn chế.
+  \item \textbf{LiteRT} chạy model qua interpreter TFLite Micro với INT8 quantization. Model MobileNetV2 được lưu dưới dạng flatbuffer và được xử lý từng lớp tại runtime -- tốn nhiều thời gian hơn nhưng kết quả dự đoán chính xác hơn do model được train với nhiều dữ liệu hơn.
+\end{itemize}
+
+\subsubsection*{Phân tích theo lớp -- Edge Impulse}
+
+\begin{itemize}
+  \item \textbf{Biological} là lớp duy nhất được nhận diện tốt (F1 = 0.667): đặc trưng màu sắc và kết cấu của rác hữu cơ (lá, rau củ) khá đặc biệt so với các lớp còn lại.
+  \item \textbf{Metal và Cardboard} có Recall rất thấp (0.250): model hầu như không nhận ra hai lớp này. Metal bị dự đoán là battery hoặc paper; cardboard bị nhận nhầm thành battery. Điều này gợi ý model EON bị thiên lệch (biased) mạnh về lớp \textit{battery} và \textit{paper} -- hai lớp có số lần được dự đoán cao nhất (6 lần mỗi lớp trong tổng 20 mẫu).
+  \item \textbf{Metal đạt Precision = 1.0} nhưng Recall chỉ 0.25: model chỉ dự đoán metal đúng 1 lần duy nhất (metal4), và lần đó không có mẫu nào khác bị nhầm thành metal (FP = 0). Đây không phải là dấu hiệu tốt -- model gần như không bao giờ dự đoán lớp này.
+  \item Có hiện tượng \textbf{confident wrong}: nhiều dự đoán sai nhưng có độ tin cậy rất cao, ví dụ cardboard2 bị dự đoán là battery với confidence 99.21\%, metal2/3 bị dự đoán là paper với 85.55\%. Đây là dấu hiệu của overfitting hoặc phân phối dữ liệu train không đại diện cho môi trường kiểm thử.
+\end{itemize}
+
+\subsubsection*{Phân tích theo lớp -- LiteRT}
+
+\begin{itemize}
+  \item \textbf{Metal đạt Recall = 1.000} (4/4 đúng) với confidence rất cao (99.21--99.61\%): model nhận diện đặc trưng kim loại rất rõ ràng. Tuy nhiên, Precision chỉ 0.500 vì model đồng thời nhầm toàn bộ 3 ảnh battery thành Metal -- do battery cũng có bề mặt kim loại bóng láng tương tự.
+  \item \textbf{Battery có Recall thấp nhất (0.250)}: đây là hệ quả trực tiếp của sự nhầm lẫn battery--metal. Cả hai lớp đều có bề mặt phản chiếu kim loại, kích thước nhỏ, và màu sắc tương đồng. Với chỉ 96$\times$96 pixel, sự khác biệt về hình dạng (trụ tròn vs. tấm phẳng) không được mô hình học được đầy đủ.
+  \item \textbf{Biological và Paper đạt F1 = 0.857}: hai lớp này có đặc trưng hình ảnh rõ ràng -- biological thường có màu xanh/nâu không đều và kết cấu thực vật; paper thường có màu trắng đồng nhất và bề mặt phẳng.
+  \item \textbf{Cardboard} đạt F1 = 0.750: một mẫu (cardboard2) bị nhầm thành Battery và một mẫu paper (paper1) bị nhầm thành Cardboard -- cả hai đều là vật liệu phẳng màu nâu/trắng dễ gây nhầm lẫn.
+\end{itemize}
+
+\subsubsection*{Ảnh hưởng của thời gian suy diễn}
+
+Thời gian 6.45 giây của LiteRT là không phù hợp cho ứng dụng cần phản hồi tức thời, nhưng có thể chấp nhận trong bối cảnh IoT phân loại rác không yêu cầu real-time. Ngược lại, Edge Impulse với 202\,ms hoàn toàn đủ cho real-time nhưng cần cải thiện chất lượng model. Thời gian suy diễn của LiteRT có thể được tối ưu bằng cách giảm kích thước model (pruning, quantization-aware training) hoặc sử dụng model nhỏ hơn như MobileNetV1 thay vì V2.
+
+\subsubsection*{Giới hạn của thử nghiệm}
+
+Bộ kiểm thử chỉ gồm 20 mẫu (4 mỗi lớp), do đó các chỉ số precision/recall có độ biến động cao -- một sai lệch đơn lẻ ảnh hưởng đến metric tới 25 điểm phần trăm. Kết luận chỉ mang tính tham khảo ban đầu; cần tập kiểm thử lớn hơn (tối thiểu 50--100 mẫu/lớp) để đánh giá tin cậy hơn.
+
+\end{document}

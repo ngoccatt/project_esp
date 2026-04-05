@@ -1,0 +1,66 @@
+\relax 
+\providecommand \babel@aux [2]{\global \let \babel@toc \@gobbletwo }
+\@nameuse{bbl@beforestart}
+\catcode `"\active 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\babel@aux{vietnamese}{}
+\@writefile{toc}{\contentsline {section}{\numberline {1}Tổng quan hệ thống}{2}{section.1}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces End-to-end processing flow from browser to ESP32}}{2}{figure.caption.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2}Cập nhật Web Server -- Truyền ảnh qua WebSocket}{3}{section.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Giao thức truyền ảnh}{3}{subsection.2.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Các kiểu thông điệp WebSocket cho trang \texttt  {ai\_detect}}}{3}{table.caption.4}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {1}{\ignorespaces Xử lý trang \texttt  {ai\_detect} trong \texttt  {requestProcessing()}}}{3}{lstlisting.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.2}Lý do chia chunk và xử lý phía trình duyệt}{4}{subsection.2.2}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {2}{\ignorespaces Gửi ảnh theo chunk trong \texttt  {script.js}}}{4}{lstlisting.2}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Browser-side image processing pipeline before transmission}}{5}{figure.caption.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3}Module ghép ảnh và chuyển đổi Pixel (\texttt  {image\_concat})}{5}{section.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Sơ đồ pipeline xử lý ảnh}{6}{subsection.3.1}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Image processing pipeline in the \texttt  {image\_concat} module}}{6}{figure.caption.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Bước 1 -- Ghép chunk và giải mã Base64}{6}{subsection.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}Bước 2 -- Giải mã JPEG thành pixel RGB888}{6}{subsection.3.3}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {3}{\ignorespaces Callback JPEGDEC -- chú ý thứ tự byte RGB8888}}{7}{lstlisting.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.4}Bước 3+4 -- Resize và Quantize INT8}{7}{subsection.3.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.5}Quản lý buffer đôi và cờ trạng thái}{7}{subsection.3.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4}Suy diễn với TensorFlow Lite Micro -- Thư viện \texttt  {TensorFlowLite\_ESP32}}{8}{section.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Giới thiệu thư viện}{8}{subsection.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Chuyển sang LiteRT (phiên bản mới)}{8}{subsection.4.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces So sánh \texttt  {TensorFlowLite\_ESP32} (cũ) và LiteRT (mới)}}{8}{table.caption.9}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {4}{\ignorespaces Sinh cây thư mục LiteRT cho ESP32}}{8}{lstlisting.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}Cấu hình \texttt  {platformio.ini}}{9}{subsection.4.3}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {5}{\ignorespaces Cấu hình PlatformIO cho back-end TFLite Micro}}{9}{lstlisting.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}Luồng khởi tạo và suy diễn}{10}{subsection.4.4}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces TFLite Micro initialization and inference flow}}{10}{figure.caption.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.5}Vấn đề tensor arena và PSRAM}{10}{subsection.4.5}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {6}{\ignorespaces Cấp phát tensor arena từ PSRAM}}{10}{lstlisting.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.6}Giải quantize kết quả đầu ra}{11}{subsection.4.6}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {7}{\ignorespaces Giải quantize giá trị INT8 ra xác suất float}}{11}{lstlisting.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5}Suy diễn với Edge Impulse -- Thư viện \texttt  {AIoT\_Edge\_Impulse}}{11}{section.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Giới thiệu thư viện}{11}{subsection.5.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces So sánh hai back-end suy diễn}}{11}{table.caption.11}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Các thay đổi để tương thích với dự án}{12}{subsection.5.2}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {8}{\ignorespaces \texttt  {platformio.ini} -- loại trừ thư viện xung đột}}{12}{lstlisting.8}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {9}{\ignorespaces Guard macro để tách biệt hai back-end}}{12}{lstlisting.9}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {10}{\ignorespaces Cài đặt signal\_t cho Edge Impulse}}{13}{lstlisting.10}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {11}{\ignorespaces Kiểm tra kích thước đầu vào}}{13}{lstlisting.11}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {12}{\ignorespaces Tắt Watchdog cho task suy diễn nặng}}{14}{lstlisting.12}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Luồng suy diễn Edge Impulse}{14}{subsection.5.3}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Edge Impulse inference flow in FreeRTOS task}}{14}{figure.caption.16}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.4}Kết quả đầu ra}{14}{subsection.5.4}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {13}{\ignorespaces Đọc kết quả từ \texttt  {ei\_impulse\_result\_t}}}{14}{lstlisting.13}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {14}{\ignorespaces JSON kết quả trả về trình duyệt}}{15}{lstlisting.14}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6}Tổng kết}{15}{section.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7}Đánh giá hiệu năng thực tế trên ESP32}{15}{section.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.1}Thiết lập kiểm thử}{15}{subsection.7.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.2}Kết quả thô}{16}{subsection.7.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Kết quả phân loại thô của từng mẫu kiểm thử}}{16}{table.caption.17}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.3}Ma trận nhầm lẫn (Confusion Matrix)}{17}{subsection.7.3}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Confusion matrix -- Edge Impulse EON (hàng = nhãn thật, cột = dự đoán)}}{17}{table.caption.18}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces Confusion matrix -- LiteRT / TFLite Micro (hàng = nhãn thật, cột = dự đoán)}}{17}{table.caption.19}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.4}Chỉ số đánh giá theo lớp}{17}{subsection.7.4}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {7}{\ignorespaces Chỉ số per-class -- Edge Impulse EON (sau khi sửa lỗi pixel buffer)}}{17}{table.caption.20}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {8}{\ignorespaces Chỉ số per-class -- LiteRT / TFLite Micro}}{18}{table.caption.21}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {9}{\ignorespaces So sánh tổng hợp hai back-end}}{18}{table.caption.22}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.5}Phân tích kết quả}{18}{subsection.7.5}\protected@file@percent }
+\gdef \@abspage@last{21}

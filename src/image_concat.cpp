@@ -118,11 +118,10 @@ static bool decodeJpegToPixels(size_t jpegLen) {
 // -------------------------------------------------------------------
 static void resizeAndNormalize() {
     // Scale the full source image into the model input dimensions.
-    // When src == model size: scale = 1.0 (straight copy).
-    // When src < model size: scale < 1.0 (stretch up).
-    // When src > model size: scale > 1.0 (shrink down).
-    float scaleX = (float)s_jpegDecodeW / MODEL_INPUT_W;
-    float scaleY = (float)s_jpegDecodeH / MODEL_INPUT_H;
+    int srcW = (s_jpegDecodeW < MODEL_INPUT_W) ? s_jpegDecodeW : MODEL_INPUT_W;
+    int srcH = (s_jpegDecodeH < MODEL_INPUT_H) ? s_jpegDecodeH : MODEL_INPUT_H;
+    float scaleX = (float)srcW / MODEL_INPUT_W;
+    float scaleY = (float)srcH / MODEL_INPUT_H;
 
     for (int y = 0; y < MODEL_INPUT_H; y++) {
         for (int x = 0; x < MODEL_INPUT_W; x++) {
@@ -142,12 +141,15 @@ static void resizeAndNormalize() {
             s_modelInput[dstBase + 2] = (int8_t)((int)b - 128);
 
             // Edge Impulse RGB888 signal format: one float per pixel, packed as (R<<16|G<<8|B).
+            // Must use original uint8 r/g/b (0-255), NOT the int8-quantized values in s_modelInput.
+            // Casting int8_t to uint32_t sign-extends negative values (e.g. -128 -> 0xFFFFFF80),
+            // corrupting the packed pixel entirely.
             // Index is pixelIdx = W*Y + X (NOT dstBase which is 3× that — would be OOB).
             int pixelIdx = y * MODEL_INPUT_W + x;
             s_modelInputFloat[pixelIdx] = (float)(
-                ((uint32_t)s_modelInput[dstBase + 0] << 16) | // R
-                ((uint32_t)s_modelInput[dstBase + 1] <<  8) | // G
-                ((uint32_t)s_modelInput[dstBase + 2]      )   // B
+                ((uint32_t)r << 16) | // R  (uint8, range 0-255)
+                ((uint32_t)g <<  8) | // G
+                ((uint32_t)b      )   // B
             );
         }
     }

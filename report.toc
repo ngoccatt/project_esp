@@ -1,0 +1,30 @@
+\babel@toc {vietnamese}{}\relax 
+\contentsline {section}{\numberline {1}Tổng quan hệ thống}{2}{section.1}%
+\contentsline {section}{\numberline {2}Cập nhật Web Server -- Truyền ảnh qua WebSocket}{3}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Giao thức truyền ảnh}{3}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}Lý do chia chunk và xử lý phía trình duyệt}{4}{subsection.2.2}%
+\contentsline {section}{\numberline {3}Module ghép ảnh và chuyển đổi Pixel (\texttt {image\_concat})}{5}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Sơ đồ pipeline xử lý ảnh}{6}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}Bước 1 -- Ghép chunk và giải mã Base64}{6}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}Bước 2 -- Giải mã JPEG thành pixel RGB888}{6}{subsection.3.3}%
+\contentsline {subsection}{\numberline {3.4}Bước 3+4 -- Resize và Quantize INT8}{7}{subsection.3.4}%
+\contentsline {subsection}{\numberline {3.5}Quản lý buffer đôi và cờ trạng thái}{7}{subsection.3.5}%
+\contentsline {section}{\numberline {4}Suy diễn với TensorFlow Lite Micro -- Thư viện \texttt {TensorFlowLite\_ESP32}}{8}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Giới thiệu thư viện}{8}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}Chuyển sang LiteRT (phiên bản mới)}{8}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}Cấu hình \texttt {platformio.ini}}{9}{subsection.4.3}%
+\contentsline {subsection}{\numberline {4.4}Luồng khởi tạo và suy diễn}{10}{subsection.4.4}%
+\contentsline {subsection}{\numberline {4.5}Vấn đề tensor arena và PSRAM}{10}{subsection.4.5}%
+\contentsline {subsection}{\numberline {4.6}Giải quantize kết quả đầu ra}{11}{subsection.4.6}%
+\contentsline {section}{\numberline {5}Suy diễn với Edge Impulse -- Thư viện \texttt {AIoT\_Edge\_Impulse}}{11}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Giới thiệu thư viện}{11}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Các thay đổi để tương thích với dự án}{12}{subsection.5.2}%
+\contentsline {subsection}{\numberline {5.3}Luồng suy diễn Edge Impulse}{14}{subsection.5.3}%
+\contentsline {subsection}{\numberline {5.4}Kết quả đầu ra}{14}{subsection.5.4}%
+\contentsline {section}{\numberline {6}Tổng kết}{15}{section.6}%
+\contentsline {section}{\numberline {7}Đánh giá hiệu năng thực tế trên ESP32}{15}{section.7}%
+\contentsline {subsection}{\numberline {7.1}Thiết lập kiểm thử}{15}{subsection.7.1}%
+\contentsline {subsection}{\numberline {7.2}Kết quả thô}{16}{subsection.7.2}%
+\contentsline {subsection}{\numberline {7.3}Ma trận nhầm lẫn (Confusion Matrix)}{17}{subsection.7.3}%
+\contentsline {subsection}{\numberline {7.4}Chỉ số đánh giá theo lớp}{17}{subsection.7.4}%
+\contentsline {subsection}{\numberline {7.5}Phân tích kết quả}{18}{subsection.7.5}%
